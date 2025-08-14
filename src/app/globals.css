@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --default-transition-duration: 150ms;
+  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-open-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+@variant dark (.dark &);
+
+/* Ensure the root html background matches the current theme */
+html {
+  @apply bg-white;
+}
+
+html.dark {
+  @apply bg-gray-900;
+}
+
+/* Page transition keyframes */
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translateY(16px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Subtle floating animation for hero visual */
+@keyframes float-slow {
+  0% { transform: translateY(0) }
+  100% { transform: translateY(-8px) }
+}
+
+/* Purple sage palette variables */
+:root {
+  --color-brand: #9B5DE5;        /* playful purple */
+  --color-accent-1: var(--color-brand);
+  --color-accent-2: var(--color-brand);
+  --color-bg-start: #F7F5FA;     /* lilac mist */
+  --color-bg-mid: #F3F6F3;       /* sage haze */
+  --color-bg-end: #F6F4F8;       /* violet veil */
+  --color-ring: #9B5DE5;         /* focus ring base */
+}
+
+html.dark {
+  --color-brand: #C89BFF;        /* playful purple (lightened) */
+  --color-accent-1: var(--color-brand);
+  --color-accent-2: var(--color-brand);
+  --color-bg-start: #0C0B10;     /* deep plum-black */
+  --color-bg-mid: #0E1110;       /* charcoal-sage */
+  --color-bg-end: #0C0B10;       /* deep plum-black */
+  --color-ring: #C89BFF;         /* focus ring base */
+}
+
