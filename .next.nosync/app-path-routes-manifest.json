@@ -1,0 +1,9 @@
+{
+  "/api/tts/route": "/api/tts",
+  "/api/auth/[...nextauth]/route": "/api/auth/[...nextauth]",
+  "/_not-found/page": "/_not-found",
+  "/api/chat/route": "/api/chat",
+  "/dashboard/page": "/dashboard",
+  "/signin/page": "/signin",
+  "/page": "/"
+}
