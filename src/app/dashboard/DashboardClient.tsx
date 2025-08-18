@@ -19,26 +19,39 @@ export default function DashboardClient() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
-  // Load chats + selected chat from localStorage
+  // Load conversations from server
   useEffect(() => {
-    try {
-      const rawChats = localStorage.getItem("bm_chats");
-      if (rawChats) setChats(JSON.parse(rawChats));
-      const rawSelected = localStorage.getItem("bm_selected_chat");
-      if (rawSelected) setSelectedChatId(rawSelected);
-    } catch {
-      // ignore
-    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/conversations", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { conversations: ChatThread[] };
+        if (cancelled) return;
+        setChats(data.conversations ?? []);
+        const rawSelected = localStorage.getItem("bm_selected_chat");
+        if (rawSelected) setSelectedChatId(rawSelected);
+      } catch {
+        // ignore
+      }
+    };
+    load();
+    const id = setInterval(load, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
-  // Persist chats
+  // When chats list updates, ensure selection remains valid
   useEffect(() => {
-    try {
-      localStorage.setItem("bm_chats", JSON.stringify(chats));
-    } catch {
-      // ignore
+    if (!selectedChatId && chats.length > 0) {
+      setSelectedChatId(chats[0].id);
     }
-  }, [chats]);
+    if (selectedChatId && !chats.find((c) => c.id === selectedChatId)) {
+      setSelectedChatId(chats[0]?.id ?? null);
+    }
+  }, [chats, selectedChatId]);
 
   // Persist selected chat id
   useEffect(() => {
@@ -102,25 +115,32 @@ export default function DashboardClient() {
   );
 
   const handleNewChat = () => {
-    const now = Date.now();
-    const newChat: ChatThread = {
-      id: String(now),
-      title: `New chat ${new Date(now).toLocaleTimeString()}`,
-      createdAt: now,
-    };
-    setChats((prev) => [newChat, ...prev]);
-    setSelectedChatId(newChat.id);
-    setIsOpen(false);
+    (async () => {
+      try {
+        const res = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { conversation: ChatThread };
+        setChats((prev) => [data.conversation, ...prev]);
+        setSelectedChatId(data.conversation.id);
+        setIsOpen(false);
+      } catch {
+        // ignore
+      }
+    })();
   };
 
   const handleDeleteChat = (id: string) => {
-    setChats((prev) => prev.filter((c) => c.id !== id));
-    setSelectedChatId((current) => (current === id ? null : current));
-    try {
-      localStorage.removeItem(`bm_messages_${id}`);
-    } catch {
-      // ignore
-    }
+    (async () => {
+      try {
+        await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+      } catch {}
+      setChats((prev) => prev.filter((c) => c.id !== id));
+      setSelectedChatId((current) => (current === id ? null : current));
+    })();
   };
 
   // Auto-select the most recent chat if none is selected

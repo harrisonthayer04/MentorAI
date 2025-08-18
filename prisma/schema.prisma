@@ -10,6 +10,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -24,6 +30,7 @@ model User {
 
   accounts      Account[]
   sessions      Session[]
+  conversations Conversation[]
 }
 
 model Account {
@@ -61,4 +68,29 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
 }

@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 type IncomingMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -10,9 +13,14 @@ const MODEL_SLUGS: Record<string, string> = {
 
 export async function POST(req: Request) {
   try {
-    const { modelId, messages } = (await req.json()) as {
+    const session = await getServerSession(authOptions);
+    const userId = (session?.user as { id?: string } | undefined)?.id;
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { modelId, messages, conversationId } = (await req.json()) as {
       modelId?: string;
       messages?: IncomingMessage[];
+      conversationId?: string;
     };
 
     if (!process.env.OPENROUTER_API_KEY) {
@@ -50,6 +58,18 @@ export async function POST(req: Request) {
 
     const data = await resp.json();
     const content = data?.choices?.[0]?.message?.content ?? "";
+
+    // Optionally store assistant message if a conversationId is provided
+    if (conversationId && content) {
+      const conv = await prisma.conversation.findFirst({ where: { id: conversationId, userId }, select: { id: true } });
+      if (conv) {
+        await prisma.message.create({
+          data: { conversationId, role: "assistant", content },
+        });
+        await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
+      }
+    }
+
     return NextResponse.json({ content });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

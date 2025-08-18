@@ -36,6 +36,17 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
     try {
       setIsLoading(true);
+      // Persist the user message on the server immediately
+      try {
+        await fetch("/api/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationId: threadId, role: "user", content: text }),
+          keepalive: true,
+        });
+      } catch {}
+
+      // Trigger AI response; server will persist assistant reply
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -46,17 +57,22 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
             ...messages.map(({ role, content }) => ({ role, content })),
             { role: "user", content: text },
           ],
+          conversationId: threadId,
         }),
+        keepalive: true,
       });
       const data = await resp.json();
       const content = data?.content ?? data?.error ?? "(no response)";
-      const aiMsg: ChatMessage = {
-        id: `a_${Date.now()}`,
-        role: "assistant",
-        content,
-        createdAt: Date.now(),
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      // Do not append assistant locally (server will save it). Rely on polling below to render.
+      if (data?.error) {
+        const aiMsg: ChatMessage = {
+          id: `a_${Date.now()}`,
+          role: "assistant",
+          content,
+          createdAt: Date.now(),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       const aiMsg: ChatMessage = {
@@ -76,37 +92,32 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     await sendMessage();
   };
 
-  // Load messages for selected thread
+  // Load messages for selected thread from server and poll
   useEffect(() => {
-    if (!threadId) {
-      setMessages([]);
-      setInputValue("");
-      setIsLoading(false);
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(`bm_messages_${threadId}`);
-      if (raw) {
-        setMessages(JSON.parse(raw));
-      } else {
-        setMessages([]);
+    let cancelled = false;
+    const load = async () => {
+      if (!threadId) return;
+      try {
+        const res = await fetch(`/api/messages?conversationId=${encodeURIComponent(threadId)}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { messages: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string }> };
+        if (cancelled) return;
+        const normalized = (data.messages || []).map((m) => ({ ...m, createdAt: new Date(m.createdAt).getTime() } as ChatMessage));
+        setMessages(normalized);
+      } catch {
+        // ignore
       }
-    } catch {
-      setMessages([]);
-    }
+    };
+    setMessages([]);
     setInputValue("");
     setIsLoading(false);
+    load();
+    const id = setInterval(load, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [threadId]);
-
-  // Persist messages per thread
-  useEffect(() => {
-    if (!threadId) return;
-    try {
-      localStorage.setItem(`bm_messages_${threadId}`, JSON.stringify(messages));
-    } catch {
-      // ignore
-    }
-  }, [messages, threadId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

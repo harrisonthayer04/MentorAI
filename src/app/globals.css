@@ -55,3 +55,46 @@ html.dark {
   --color-ring: #C89BFF;         /* focus ring base */
 }
 
+/* Themed scrollbars (Firefox + WebKit) */
+:root {
+  --scrollbar-thumb: color-mix(in oklab, var(--color-brand) 70%, black 10%);
+  --scrollbar-track: color-mix(in oklab, var(--color-bg-mid) 70%, transparent 30%);
+}
+
+html.dark {
+  --scrollbar-thumb: color-mix(in oklab, var(--color-brand) 85%, white 5%);
+  --scrollbar-track: rgba(255, 255, 255, 0.08);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* WebKit (Chrome, Edge, Safari) */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-brand) 90%, black 10%);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+}
+
