@@ -1,7 +1,8 @@
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  // Use Vercel Postgres non-pooled URL by default in deployments
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 generator client {
