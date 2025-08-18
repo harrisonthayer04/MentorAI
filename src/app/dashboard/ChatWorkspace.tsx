@@ -13,11 +13,12 @@ type ChatMessage = {
   createdAt: number;
 };
 
-export default function ChatWorkspace() {
+export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
   const [modelId, setModelId] = useState<string>("gpt-5-chat");
   const [inputValue, setInputValue] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [speakEnabled, setSpeakEnabled] = useState<boolean>(false);
 
   // Keep messages as-is; if we ever need chronological order, sort at render time.
 
@@ -27,6 +28,7 @@ export default function ChatWorkspace() {
     if (isLoading) return;
     const text = inputValue.trim();
     if (!text) return;
+    if (!threadId) return; // can't send without a selected thread
     const now = Date.now();
     const userMsg: ChatMessage = { id: `u_${now}`, role: "user", content: text, createdAt: now };
     setMessages((prev) => [...prev, userMsg]);
@@ -74,6 +76,38 @@ export default function ChatWorkspace() {
     await sendMessage();
   };
 
+  // Load messages for selected thread
+  useEffect(() => {
+    if (!threadId) {
+      setMessages([]);
+      setInputValue("");
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(`bm_messages_${threadId}`);
+      if (raw) {
+        setMessages(JSON.parse(raw));
+      } else {
+        setMessages([]);
+      }
+    } catch {
+      setMessages([]);
+    }
+    setInputValue("");
+    setIsLoading(false);
+  }, [threadId]);
+
+  // Persist messages per thread
+  useEffect(() => {
+    if (!threadId) return;
+    try {
+      localStorage.setItem(`bm_messages_${threadId}`, JSON.stringify(messages));
+    } catch {
+      // ignore
+    }
+  }, [messages, threadId]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -81,9 +115,28 @@ export default function ChatWorkspace() {
     }
   };
 
+  // Load persisted settings
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("bm_speak_enabled");
+      if (raw != null) setSpeakEnabled(raw === "true");
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist speak setting
+  useEffect(() => {
+    try {
+      localStorage.setItem("bm_speak_enabled", String(speakEnabled));
+    } catch {
+      // ignore
+    }
+  }, [speakEnabled]);
+
   return (
-    <div className="w-full px-2 md:px-4 py-2 md:py-3">
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 items-stretch h-[calc(100vh-1rem)] md:h-[calc(100vh-1.5rem)] overflow-hidden">
+    <div className="w-full h-full">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 items-stretch h-full overflow-hidden">
         {/* Left: Chat box (1/4) */}
         <div className="md:col-span-3 min-h-0 h-full">
           <div className="h-full rounded-2xl bg-white/70 dark:bg-white/10 backdrop-blur border border-white/40 dark:border-white/10 shadow flex flex-col">
@@ -101,6 +154,33 @@ export default function ChatWorkspace() {
               </select>
             </div>
 
+            {/* Response mode toggle */}
+            <div className="px-4 py-3 border-b border-white/40 dark:border-white/10">
+              <div className="flex items-center justify-between">
+                <label htmlFor="speak-toggle" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Audio replies
+                </label>
+                <button
+                  id="speak-toggle"
+                  role="switch"
+                  aria-checked={speakEnabled}
+                  onClick={() => setSpeakEnabled((v) => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    speakEnabled ? "bg-[var(--color-brand)]" : "bg-gray-300 dark:bg-gray-700"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                      speakEnabled ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                {speakEnabled ? "Assistant will speak responses" : "Assistant will reply with text only"}
+              </div>
+            </div>
+
             {/* Chat input */}
             <form onSubmit={handleSubmit} className="p-4 mt-auto">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Your message</label>
@@ -109,13 +189,15 @@ export default function ChatWorkspace() {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={5}
-                placeholder="Type here..."
+                placeholder={threadId ? "Type here..." : "Create or select a conversation to start"}
                 className="w-full rounded-xl bg-white/80 dark:bg-gray-900/40 border border-white/40 dark:border-white/10 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/40 resize-none"
+                disabled={!threadId}
               />
               <div className="mt-3 flex justify-end">
                 <button
                   type="submit"
-                  className="rounded-xl bg-[var(--color-brand)] hover:bg-[color-mix(in_oklab,var(--color-brand),black_10%)] text-white font-display font-semibold px-4 py-2 transition-colors"
+                  className="rounded-xl bg-[var(--color-brand)] hover:bg-[color-mix(in_oklab,var(--color-brand),black_10%)] text-white font-display font-semibold px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!threadId}
                 >
                   Send
                 </button>
@@ -126,14 +208,14 @@ export default function ChatWorkspace() {
 
         {/* Right: Conversation area (3/4) */}
         <div className="md:col-span-9 min-h-0 h-full">
-          <ChatPanel messages={messages} isLoading={isLoading} />
+          <ChatPanel messages={messages} isLoading={isLoading} enableAudio={speakEnabled} />
         </div>
       </div>
     </div>
   );
 }
 
-function ChatPanel({ messages, isLoading }: { messages: ChatMessage[]; isLoading: boolean }) {
+function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage[]; isLoading: boolean; enableAudio: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const lastSpokenRef = useRef<string>("");
@@ -182,6 +264,7 @@ function ChatPanel({ messages, isLoading }: { messages: ChatMessage[]; isLoading
   }, [messages, isLoading]);
 
   useEffect(() => {
+    if (!enableAudio) return; // audio disabled
     if (typeof window === "undefined") return;
     const text = (latestAssistantText || "").trim();
     if (!text || text === lastSpokenRef.current) return;
@@ -228,7 +311,12 @@ function ChatPanel({ messages, isLoading }: { messages: ChatMessage[]; isLoading
     return () => {
       revoked = true;
     };
-  }, [latestAssistantText, speakWithWebSpeech]);
+  }, [latestAssistantText, speakWithWebSpeech, enableAudio]);
+
+  // Reset playBlocked if audio is disabled
+  useEffect(() => {
+    if (!enableAudio) setPlayBlocked(false);
+  }, [enableAudio]);
 
   useEffect(() => {
     return () => {
