@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import DashboardClient from "./DashboardClient";
 
 export default async function DashboardPage() {
-  const _session = await getServerSession(authOptions);
+  await getServerSession(authOptions);
 
   // Optionally gate access; for now, render regardless.
   return (
