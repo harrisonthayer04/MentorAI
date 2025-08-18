@@ -1,8 +1,9 @@
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-  // Use Vercel Postgres non-pooled URL by default in deployments
-  directUrl = env("POSTGRES_URL_NON_POOLING")
+  // Use Accelerate (prisma+postgres) for Prisma Client at runtime
+  url       = env("PRISMA_DATABASE_URL")
+  // Use a direct Postgres connection for migrations/CLI
+  directUrl = env("DATABASE_URL")
 }
 
 generator client {
