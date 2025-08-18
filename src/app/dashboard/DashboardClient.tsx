@@ -243,7 +243,7 @@ export default function DashboardClient() {
                           ? "bg-white/80 dark:bg-white/15 ring-1 ring-[var(--color-brand)]/30"
                           : "hover:bg-white/60 dark:hover:bg-white/10"
                       }`}
-                      aria-selected={chat.id === selectedChatId}
+                      aria-current={chat.id === selectedChatId ? "true" : undefined}
                     >
                       <div className="min-w-0">
                         <div className="truncate font-medium">{chat.title}</div>
