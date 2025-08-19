@@ -19,6 +19,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [speakEnabled, setSpeakEnabled] = useState<boolean>(false);
+  const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map());
 
   // Keep messages as-is; if we ever need chronological order, sort at render time.
 
@@ -31,7 +32,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     if (!threadId) return; // can't send without a selected thread
     const now = Date.now();
     const userMsg: ChatMessage = { id: `u_${now}`, role: "user", content: text, createdAt: now };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => {
+      const next = [...prev, userMsg];
+      if (threadId) messageCacheRef.current.set(threadId, next);
+      return next;
+    });
     setInputValue("");
 
     try {
@@ -71,7 +76,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
           content,
           createdAt: Date.now(),
         };
-        setMessages((prev) => [...prev, aiMsg]);
+        setMessages((prev) => {
+          const next = [...prev, aiMsg];
+          if (threadId) messageCacheRef.current.set(threadId, next);
+          return next;
+        });
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -81,7 +90,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         content: `Error: ${message}`,
         createdAt: Date.now(),
       };
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => {
+        const next = [...prev, aiMsg];
+        if (threadId) messageCacheRef.current.set(threadId, next);
+        return next;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -92,9 +105,24 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     await sendMessage();
   };
 
-  // Load messages for selected thread from server and poll
+  // Load messages for selected thread from server and poll, using an in-memory cache
   useEffect(() => {
     let cancelled = false;
+
+    // Hydrate from cache immediately to avoid flicker
+    setInputValue("");
+    setIsLoading(false);
+    if (!threadId) {
+      setMessages([]);
+      return () => {};
+    }
+    const cached = messageCacheRef.current.get(threadId);
+    if (cached) {
+      setMessages(cached);
+    } else {
+      setMessages([]);
+    }
+
     const load = async () => {
       if (!threadId) return;
       try {
@@ -104,13 +132,12 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         if (cancelled) return;
         const normalized = (data.messages || []).map((m) => ({ ...m, createdAt: new Date(m.createdAt).getTime() } as ChatMessage));
         setMessages(normalized);
+        messageCacheRef.current.set(threadId, normalized);
       } catch {
         // ignore
       }
     };
-    setMessages([]);
-    setInputValue("");
-    setIsLoading(false);
+
     load();
     const id = setInterval(load, 3000);
     return () => {
