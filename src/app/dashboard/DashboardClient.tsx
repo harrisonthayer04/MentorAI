@@ -26,9 +26,15 @@ export default function DashboardClient() {
       try {
         const res = await fetch("/api/conversations", { cache: "no-store" });
         if (!res.ok) return;
-        const data = (await res.json()) as { conversations: ChatThread[] };
+        const data = (await res.json()) as {
+          conversations: Array<{ id: string; title: string; createdAt: string | number }>;
+        };
         if (cancelled) return;
-        setChats(data.conversations ?? []);
+        const normalized = (data.conversations || []).map((c) => ({
+          ...c,
+          createdAt: new Date(c.createdAt as unknown as string | number).getTime(),
+        })) as ChatThread[];
+        setChats(normalized);
         const rawSelected = localStorage.getItem("bm_selected_chat");
         if (rawSelected) setSelectedChatId(rawSelected);
       } catch {
@@ -104,8 +110,7 @@ export default function DashboardClient() {
     return () => {
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("beforeunload", onBeforeUnload);
-      // Also sign out on unmount (SPA route change)
-      signoutBeacon();
+      // Do not sign out on component unmount to avoid accidental logout in Strict Mode
     };
   }, [csrfToken]);
 
@@ -122,10 +127,21 @@ export default function DashboardClient() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({}),
         });
+        if (res.status === 401) {
+          // If unauthorized, send the user to sign-in
+          router.push("/signin");
+          return;
+        }
         if (!res.ok) return;
-        const data = (await res.json()) as { conversation: ChatThread };
-        setChats((prev) => [data.conversation, ...prev]);
-        setSelectedChatId(data.conversation.id);
+        const data = (await res.json()) as {
+          conversation: { id: string; title: string; createdAt: string | number };
+        };
+        const normalized = {
+          ...data.conversation,
+          createdAt: new Date(data.conversation.createdAt as unknown as string | number).getTime(),
+        } as ChatThread;
+        setChats((prev) => [normalized, ...prev]);
+        setSelectedChatId(normalized.id);
         setIsOpen(false);
       } catch {
         // ignore
