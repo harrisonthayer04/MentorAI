@@ -58,7 +58,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         body: JSON.stringify({
           modelId,
           messages: [
-            { role: "system", content: "You are a helpful teaching assistant." },
+            { role: "system", content: "You are a helpful teaching assistant. You can call tools to save durable user memories and to rename the current conversation. On the first user message, propose a concise title and call rename_conversation. Also rename later if the topic clearly shifts. Use save_memory sparingly for lasting preferences or profile facts (keep entries concise)." },
             ...messages.map(({ role, content }) => ({ role, content })),
             { role: "user", content: text },
           ],
@@ -189,6 +189,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 <option value="gpt-5-chat">GPT-5</option>
                 <option value="gpt-5-mini">GPT-5 mini</option>
                 <option value="gpt-5-nano">GPT-5 nano</option>
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
               </select>
             </div>
 
@@ -261,6 +263,7 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
   const currentUrlRef = useRef<string | null>(null);
   const [playBlocked, setPlayBlocked] = useState<boolean>(false);
   const [showTopBlur, setShowTopBlur] = useState<boolean>(false);
+  const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
 
   const convertMathDelimiters = useCallback((input: string) => {
     return input
@@ -290,16 +293,16 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
   }, []);
 
   useEffect(() => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-    } else {
-      const el = containerRef.current;
-      if (!el) return;
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    const el = containerRef.current;
+    if (isAtBottom) {
+      if (bottomRef.current) {
+        bottomRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+      } else if (el) {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      }
     }
-    const el2 = containerRef.current;
-    if (el2) setShowTopBlur(el2.scrollTop > 0);
-  }, [messages, isLoading]);
+    if (el) setShowTopBlur(el.scrollTop > 0);
+  }, [messages, isLoading, isAtBottom]);
 
   useEffect(() => {
     if (!enableAudio) return; // audio disabled
@@ -401,6 +404,8 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
           const el = containerRef.current;
           if (!el) return;
           setShowTopBlur(el.scrollTop > 0);
+          const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+          setIsAtBottom(distanceFromBottom < 48);
         }}
       >
         {messages.map((m) => (
