@@ -186,9 +186,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 onChange={(e) => setModelId(e.target.value)}
                 className="w-full rounded-xl bg-white/70 dark:bg-gray-900/40 border border-white/40 dark:border-white/10 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/40"
               >
-                <option value="gpt-5-chat">GPT-5</option>
-                <option value="gpt-5-mini">GPT-5 mini</option>
-                <option value="gpt-5-nano">GPT-5 nano</option>
                 <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
               </select>

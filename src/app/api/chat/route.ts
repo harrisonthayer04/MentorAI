@@ -20,9 +20,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const MODEL_SLUGS: Record<string, string> = {
-  "gpt-5-chat": "openai/gpt-5-chat", // map to a supported model slug; adjust when gpt-5 is available
-  "gpt-5-mini": "openai/gpt-5-mini",
-  "gpt-5-nano": "openai/gpt-5-nano",
   "gemini-2.5-flash-lite":"google/gemini-2.5-flash-lite",
   "gemini-2.5-pro":"google/gemini-2.5-pro"
 };
