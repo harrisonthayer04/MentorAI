@@ -5,6 +5,20 @@ import { prisma } from "@/lib/prisma";
 
 type IncomingMessage = { role: "user" | "assistant" | "system"; content: string };
 
+// Types for tool-calling compatibility with OpenRouter (OpenAI-style)
+type ToolFunctionCall = { name: string; arguments: string };
+type ToolCall = { id: string; type: "function"; function: ToolFunctionCall };
+type AssistantMessageWithToolCalls = { role: "assistant"; content: string | null; tool_calls: ToolCall[] };
+type AssistantMessageWithFunctionCall = { role: "assistant"; content: string | null; function_call: ToolFunctionCall };
+type ToolMessage = { role: "tool"; content: string; tool_call_id: string; name?: string };
+type OpenAIMessage = IncomingMessage | AssistantMessageWithToolCalls | AssistantMessageWithFunctionCall | ToolMessage;
+type ChoiceMessage = Partial<AssistantMessageWithToolCalls & AssistantMessageWithFunctionCall> & { content?: string | null };
+type ToolResult = { ok: boolean; error?: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 const MODEL_SLUGS: Record<string, string> = {
   "gpt-5-chat": "openai/gpt-5-chat", // map to a supported model slug; adjust when gpt-5 is available
   "gpt-5-mini": "openai/gpt-5-mini",
@@ -73,7 +87,7 @@ export async function POST(req: Request) {
       },
     ];
 
-    const convoMessages: any[] = Array.isArray(messages) ? [...messages] : [];
+    const convoMessages: OpenAIMessage[] = Array.isArray(messages) ? [...messages] : [];
     let finalContent = "";
 
     // Tool loop (bounded)
@@ -101,11 +115,11 @@ export async function POST(req: Request) {
       }
 
       const data = await resp.json();
-      const msg = data?.choices?.[0]?.message ?? {};
-      const toolCalls =
-        msg?.tool_calls ??
+      const msg = (data?.choices?.[0]?.message ?? {}) as ChoiceMessage;
+      const toolCalls: ToolCall[] =
+        (msg?.tool_calls as ToolCall[] | undefined) ??
         (msg?.function_call
-          ? [{ id: "call_0", type: "function", function: msg.function_call }]
+          ? [{ id: "call_0", type: "function", function: msg.function_call as ToolFunctionCall }]
           : []);
 
       if (Array.isArray(toolCalls) && toolCalls.length > 0) {
@@ -127,18 +141,19 @@ export async function POST(req: Request) {
 
         for (const tc of toolCalls) {
           const name = tc?.function?.name as string | undefined;
-          let args: any = {};
+          let args: unknown = {};
           try {
             args = JSON.parse(tc?.function?.arguments ?? "{}");
           } catch {
             args = {};
           }
 
-          let result: any = { ok: false, error: "Unknown tool" };
+          const obj = isRecord(args) ? args : {};
+          let result: ToolResult = { ok: false, error: "Unknown tool" };
           try {
             if (name === "save_memory") {
-              const title = typeof args?.title === "string" ? args.title.trim() : "";
-              const content = typeof args?.content === "string" ? args.content.trim() : "";
+              const title = typeof obj.title === "string" ? obj.title.trim() : "";
+              const content = typeof obj.content === "string" ? obj.content.trim() : "";
               if (!content) {
                 result = { ok: false, error: "content required" };
               } else {
@@ -148,7 +163,7 @@ export async function POST(req: Request) {
                 result = { ok: true };
               }
             } else if (name === "rename_conversation") {
-              const title = typeof args?.title === "string" ? args.title.trim() : "";
+              const title = typeof obj.title === "string" ? obj.title.trim() : "";
               if (!title) {
                 result = { ok: false, error: "title required" };
               } else if (!conversationId) {
@@ -169,8 +184,9 @@ export async function POST(req: Request) {
                 }
               }
             }
-          } catch (e: any) {
-            result = { ok: false, error: e?.message || "tool error" };
+          } catch (e) {
+            const message = e instanceof Error ? e.message : "tool error";
+            result = { ok: false, error: message };
           }
 
           // Provide tool result back to the model

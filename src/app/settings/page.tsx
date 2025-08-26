@@ -22,7 +22,7 @@ export default function SettingsPage() {
         const text = await r.text();
         let errorMsg = "Failed to load memories";
         try {
-          const j = JSON.parse(text);
+          const j = JSON.parse(text) as { error?: string };
           errorMsg = j?.error || errorMsg;
         } catch {
           errorMsg = `HTTP ${r.status}: ${text || r.statusText}`;
@@ -34,10 +34,11 @@ export default function SettingsPage() {
         setMemories([]);
         return;
       }
-      const j = JSON.parse(text);
+      const j = JSON.parse(text) as { memories?: Memory[] };
       setMemories(j.memories || []);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load memories");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to load memories";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -65,15 +66,16 @@ export default function SettingsPage() {
         const text = await r.text();
         let errorMsg = "Failed to create memory";
         try {
-          const j = JSON.parse(text);
+          const j = JSON.parse(text) as { error?: string };
           errorMsg = j?.error || errorMsg;
         } catch {
           errorMsg = `HTTP ${r.status}: ${text || r.statusText}`;
         }
         setError(errorMsg);
       }
-    } catch (e: any) {
-      setError(e?.message || "Failed to create memory");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to create memory";
+      setError(message);
     }
   };
 
@@ -90,15 +92,16 @@ export default function SettingsPage() {
         const text = await r.text();
         let errorMsg = "Failed to update memory";
         try {
-          const j = JSON.parse(text);
+          const j = JSON.parse(text) as { error?: string };
           errorMsg = j?.error || errorMsg;
         } catch {
           errorMsg = `HTTP ${r.status}: ${text || r.statusText}`;
         }
         setError(errorMsg);
       }
-    } catch (e: any) {
-      setError(e?.message || "Failed to update memory");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to update memory";
+      setError(message);
     }
   };
 
@@ -111,15 +114,16 @@ export default function SettingsPage() {
         const text = await r.text();
         let errorMsg = "Failed to delete memory";
         try {
-          const j = JSON.parse(text);
+          const j = JSON.parse(text) as { error?: string };
           errorMsg = j?.error || errorMsg;
         } catch {
           errorMsg = `HTTP ${r.status}: ${text || r.statusText}`;
         }
         setError(errorMsg);
       }
-    } catch (e: any) {
-      setError(e?.message || "Failed to delete memory");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to delete memory";
+      setError(message);
     }
   };
 
@@ -132,7 +136,8 @@ export default function SettingsPage() {
       await signOut({ callbackUrl: "/" });
     } catch (e) {
       setIsDeletingAccount(false);
-      alert((e as any)?.message || "Failed to delete account");
+      const message = e instanceof Error ? e.message : "Failed to delete account";
+      alert(message);
     }
   };
 
@@ -198,7 +203,7 @@ export default function SettingsPage() {
                         defaultValue={m.title || ""}
                         placeholder="Title"
                         onBlur={(e) => updateMemory(m.id, { title: e.target.value })}
-                        className="flex-1 rounded-md bg-white/80 dark:bg-white/10 border border-white/40 dark:border-white/10 px-2 py-1 text-sm"
+                        className="flex-1 rounded-md bg-white/80 dark:bg.white/10 border border-white/40 dark:border-white/10 px-2 py-1 text-sm"
                       />
                       <button onClick={() => deleteMemory(m.id)} className="text-xs text-red-600">Delete</button>
                     </div>
