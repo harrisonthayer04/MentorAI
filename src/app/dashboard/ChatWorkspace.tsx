@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import PlayTTS from "../components/PlayTTS";
 
 type ChatMessage = {
   id: string;
@@ -406,7 +407,10 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
         }}
       >
         {messages.map((m) => (
-          <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+          <div
+            key={m.id}
+            className={`flex items-start gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+          >
             <div
               className={`${
                 m.role === "user"
@@ -418,15 +422,9 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
                 components={{
-                  p: (props) => (
-                    <p className="mb-2 leading-relaxed" {...props} />
-                  ),
-                  ul: (props) => (
-                    <ul className="list-disc ml-5 my-2 space-y-1" {...props} />
-                  ),
-                  ol: (props) => (
-                    <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />
-                  ),
+                  p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
+                  ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
+                  ol: (props) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
                   li: (props) => <li className="leading-relaxed" {...props} />,
                   a: (props) => (
                     <a
@@ -436,9 +434,7 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
                       {...props}
                     />
                   ),
-                  strong: (props) => (
-                    <strong className="font-semibold" {...props} />
-                  ),
+                  strong: (props) => <strong className="font-semibold" {...props} />,
                   em: (props) => <em className="italic" {...props} />,
                   code: ({ children, ...props }) => (
                     <code
@@ -449,36 +445,28 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
                     </code>
                   ),
                   pre: (props) => (
-                    <pre
-                      className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`}
-                      {...props}
-                    />
+                    <pre className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
                   ),
                   blockquote: (props) => (
-                    <blockquote
-                      className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`}
-                      {...props}
-                    />
+                    <blockquote className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`} {...props} />
                   ),
-                  hr: (props) => (
-                    <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />
-                  ),
+                  hr: (props) => <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />,
                   table: (props) => (
                     <div className="overflow-x-auto my-2">
                       <table className="table-auto border-collapse text-sm" {...props} />
                     </div>
                   ),
-                  th: (props) => (
-                    <th className="border px-2 py-1" {...props} />
-                  ),
-                  td: (props) => (
-                    <td className="border px-2 py-1 align-top" {...props} />
-                  ),
+                  th: (props) => <th className="border px-2 py-1" {...props} />,
+                  td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
                 }}
               >
                 {convertMathDelimiters(m.content)}
               </ReactMarkdown>
             </div>
+
+            {m.role === "assistant" && m.content && (
+              <PlayTTS text={m.content} className="px-2 py-1 rounded bg-blue-600 text-white text-sm self-start" />
+            )}
           </div>
         ))}
         {isLoading && (
