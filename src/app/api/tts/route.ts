@@ -1,4 +1,5 @@
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -9,7 +10,7 @@ export async function POST(req: Request) {
       modelId?: string;
     };
 
-    if (!text || text.trim().length === 0) {
+    if (!text?.trim()) {
       return NextResponse.json({ error: "Missing text" }, { status: 400 });
     }
 
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing ELEVENLABS_API_KEY" }, { status: 500 });
     }
 
-    const defaultVoice = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"; // Rachel (public demo)
+    const defaultVoice = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"; 
     const voice = voiceId || defaultVoice;
     const model = modelId || process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2";
 
@@ -36,11 +37,22 @@ export async function POST(req: Request) {
         optimize_streaming_latency: 0,
         output_format: "mp3_44100_128",
       }),
+      cache: "no-store",
     });
 
     if (!resp.ok) {
-      const errorText = await resp.text();
-      return NextResponse.json({ error: errorText }, { status: 502 });
+      let errorText: string;
+      try {
+        const j = await resp.json();
+        errorText = typeof j === "string" ? j : JSON.stringify(j);
+      } catch {
+        try {
+          errorText = await resp.text();
+        } catch {
+          errorText = "(no details)";
+        }
+      }
+      return NextResponse.json({ error: `ElevenLabs ${resp.status}: ${errorText}` }, { status: 502 });
     }
 
     const audioBuffer = await resp.arrayBuffer();
@@ -58,5 +70,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
-
