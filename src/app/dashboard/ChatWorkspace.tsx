@@ -346,6 +346,7 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
           body: JSON.stringify({ text }),
         });
         if (!resp.ok) {
+          // Only use Web Speech API if ElevenLabs failed
           speakWithWebSpeech(text);
           lastSpokenRef.current = text;
           return;
@@ -367,11 +368,16 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
         try {
           setPlayBlocked(false);
           await audio.play();
+          // ElevenLabs succeeded - mark as spoken and don't use Web Speech API
+          lastSpokenRef.current = text;
         } catch {
           setPlayBlocked(true);
+          // If ElevenLabs audio fails to play, fall back to Web Speech API
+          speakWithWebSpeech(text);
+          lastSpokenRef.current = text;
         }
-        lastSpokenRef.current = text;
       } catch {
+        // Only use Web Speech API if ElevenLabs completely failed
         speakWithWebSpeech(text);
         lastSpokenRef.current = text;
       }
