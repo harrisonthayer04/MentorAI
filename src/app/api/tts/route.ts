@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const voice = voiceId || defaultVoice;
     const model = modelId || process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2";
 
-    const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
+    const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}/stream`, {
       method: "POST",
       headers: {
         "xi-api-key": apiKey,
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         text,
         model_id: model,
         voice_settings: { stability: 0.4, similarity_boost: 0.8 },
-        optimize_streaming_latency: 0,
+        optimize_streaming_latency: 3,
         output_format: "mp3_44100_128",
       }),
       cache: "no-store",
@@ -55,13 +55,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `ElevenLabs ${resp.status}: ${errorText}` }, { status: 502 });
     }
 
-    const audioBuffer = await resp.arrayBuffer();
-    return new NextResponse(audioBuffer, {
+    // Stream the audio directly to the client
+    const reader = resp.body?.getReader();
+    if (!reader) {
+      return NextResponse.json({ error: "No stream available" }, { status: 502 });
+    }
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            controller.enqueue(value);
+          }
+          controller.close();
+        } catch (err: unknown) {
+          controller.error(err);
+        }
+      },
+    });
+
+    return new Response(stream, {
       status: 200,
       headers: {
         "Content-Type": "audio/mpeg",
-        "Content-Length": String(audioBuffer.byteLength),
-        "Accept-Ranges": "bytes",
+        "Transfer-Encoding": "chunked",
         "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     });

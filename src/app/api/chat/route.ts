@@ -21,7 +21,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const MODEL_SLUGS: Record<string, string> = {
   "gemini-2.5-flash-lite":"google/gemini-2.5-flash-lite",
-  "gemini-2.5-pro":"google/gemini-2.5-pro"
+  "gemini-2.5-pro":"google/gemini-2.5-pro",
+  "z-ai/glm-4.6":"z-ai/glm-4.6"
 };
 
 export async function POST(req: Request) {
@@ -85,9 +86,8 @@ export async function POST(req: Request) {
     ];
 
     const convoMessages: OpenAIMessage[] = Array.isArray(messages) ? [...messages] : [];
-    let finalContent = "";
 
-    // Tool loop (bounded)
+    // Tool loop (bounded) - handle tool calls non-streaming first
     for (let i = 0; i < 3; i++) {
       const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -103,6 +103,7 @@ export async function POST(req: Request) {
           tools,
           tool_choice: "auto",
           temperature: 0.2,
+          stream: false,
         }),
       });
 
@@ -120,8 +121,7 @@ export async function POST(req: Request) {
           : []);
 
       if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-        // Append the assistant message that initiated the tool calls so the provider
-        // can associate subsequent tool outputs with these call ids.
+        // Append the assistant message that initiated the tool calls
         if (msg?.tool_calls) {
           convoMessages.push({
             role: "assistant",
@@ -198,22 +198,109 @@ export async function POST(req: Request) {
         continue;
       }
 
-      finalContent = msg?.content ?? "";
+      // No tool calls, break and stream the response
       break;
     }
 
-    // Persist assistant message if any
-    if (conversationId && finalContent) {
-      const conv = await prisma.conversation.findFirst({ where: { id: conversationId, userId }, select: { id: true } });
-      if (conv) {
-        await prisma.message.create({
-          data: { conversationId, role: "assistant", content: finalContent },
-        });
-        await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
-      }
-    }
+    // Now stream the final response
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
+              "X-Title": "MentorAI",
+            },
+            body: JSON.stringify({
+              model,
+              messages: convoMessages,
+              temperature: 0.2,
+              stream: true,
+            }),
+          });
 
-    return NextResponse.json({ content: finalContent });
+          if (!resp.ok) {
+            const text = await resp.text();
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: text })}\n\n`));
+            controller.close();
+            return;
+          }
+
+          const reader = resp.body?.getReader();
+          if (!reader) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "No stream" })}\n\n`));
+            controller.close();
+            return;
+          }
+
+          const decoder = new TextDecoder();
+          let buffer = "";
+          let fullContent = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed === "data: [DONE]") continue;
+              if (trimmed.startsWith("data: ")) {
+                try {
+                  const json = JSON.parse(trimmed.slice(6));
+                  const delta = json?.choices?.[0]?.delta?.content;
+                  if (delta) {
+                    fullContent += delta;
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`));
+                  }
+                } catch {
+                  // Skip malformed chunks
+                }
+              }
+            }
+          }
+
+          // Persist the complete message
+          if (conversationId && fullContent) {
+            const conv = await prisma.conversation.findFirst({
+              where: { id: conversationId, userId },
+              select: { id: true },
+            });
+            if (conv) {
+              await prisma.message.create({
+                data: { conversationId, role: "assistant", content: fullContent },
+              });
+              await prisma.conversation.update({
+                where: { id: conversationId },
+                data: { updatedAt: new Date() },
+              });
+            }
+          }
+
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: message })}\n\n`));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

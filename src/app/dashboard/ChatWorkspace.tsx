@@ -73,7 +73,22 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         }
       } catch {}
 
-      // Trigger AI response; server will persist assistant reply
+      // Create a temporary streaming message
+      const streamingId = `streaming_${Date.now()}`;
+      const streamingMsg: ChatMessage = {
+        id: streamingId,
+        role: "assistant",
+        content: "",
+        createdAt: Date.now(),
+        optimistic: true,
+      };
+      setMessages((prev) => {
+        const next = [...prev, streamingMsg];
+        if (threadId) messageCacheRef.current.set(threadId, next);
+        return next;
+      });
+
+      // Trigger AI response with streaming
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -86,24 +101,86 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
           ],
           conversationId: threadId,
         }),
-        keepalive: true,
       });
-      const data = await resp.json();
-      const content = data?.content ?? data?.error ?? "(no response)";
-      // Do not append assistant locally (server will save it). Rely on polling below to render.
-      if (data?.error) {
-        const aiMsg: ChatMessage = {
-          id: `a_${Date.now()}`,
-          role: "assistant",
-          content,
-          createdAt: Date.now(),
-        };
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
         setMessages((prev) => {
-          const next = [...prev, aiMsg];
+          const next = prev.map((msg) =>
+            msg.id === streamingId
+              ? { ...msg, content: `Error: ${errorText}`, optimistic: false }
+              : msg
+          );
           if (threadId) messageCacheRef.current.set(threadId, next);
           return next;
         });
+        setIsLoading(false);
+        return;
       }
+
+      // Handle streaming response
+      const reader = resp.body?.getReader();
+      if (!reader) {
+        setMessages((prev) => {
+          const next = prev.map((msg) =>
+            msg.id === streamingId
+              ? { ...msg, content: "Error: No stream available", optimistic: false }
+              : msg
+          );
+          if (threadId) messageCacheRef.current.set(threadId, next);
+          return next;
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === "data: [DONE]") continue;
+          if (trimmed.startsWith("data: ")) {
+            try {
+              const json = JSON.parse(trimmed.slice(6));
+              if (json.error) {
+                fullContent = `Error: ${json.error}`;
+                break;
+              }
+              if (json.content) {
+                fullContent += json.content;
+                setMessages((prev) => {
+                  const next = prev.map((msg) =>
+                    msg.id === streamingId ? { ...msg, content: fullContent } : msg
+                  );
+                  if (threadId) messageCacheRef.current.set(threadId, next);
+                  return next;
+                });
+              }
+            } catch {
+              // Skip malformed chunks
+            }
+          }
+        }
+      }
+
+      // Mark as non-optimistic when done
+      setMessages((prev) => {
+        const next = prev.map((msg) =>
+          msg.id === streamingId ? { ...msg, optimistic: false } : msg
+        );
+        if (threadId) messageCacheRef.current.set(threadId, next);
+        return next;
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       const aiMsg: ChatMessage = {
