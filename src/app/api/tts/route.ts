@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
     const defaultVoice = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"; 
     const voice = voiceId || defaultVoice;
-    const model = (modelId || process.env.ELEVENLABS_MODEL_ID || "").trim() || undefined;
+    const model = (modelId || process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2_5").trim() || "eleven_turbo_v2_5";
 
     const reqId = randomUUID();
     try {

@@ -23,9 +23,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [speakEnabled, setSpeakEnabled] = useState<boolean>(false);
   const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map());
 
-  // Keep messages as-is; if we ever need chronological order, sort at render time.
-
-  // Latest assistant text is computed inside ChatPanel for TTS playback
 
   const sendMessage = async () => {
     if (isLoading) return;
@@ -80,7 +77,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         body: JSON.stringify({
           modelId,
           messages: [
-            { role: "system", content: "You are a helpful teaching assistant. You can call tools to save durable user memories and to rename the current conversation. On the first user message, propose a concise title and call rename_conversation. Also rename later if the topic clearly shifts. Use save_memory sparingly for lasting preferences or profile facts (keep entries concise)." },
+            { role: "system", content: "You are a helpful teaching assistant. You can call tools to save durable user memories and to rename the current conversation. On the first user message, propose a concise title and call rename_conversation. Also rename later if the topic clearly shifts. Use save_memory sparingly for lasting preferences or profile facts (keep entries concise). Please also keep responses to users concise as to not overwhelm them with too much information. If the user requests for more detailed responses, attempt to keep the scope of your responses limited as to not overwhelm them with too much information." },
             ...messages.map(({ role, content }) => ({ role, content })),
             { role: "user", content: text },
           ],
