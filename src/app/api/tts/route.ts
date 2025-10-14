@@ -43,6 +43,9 @@ export async function POST(req: Request) {
     };
     if (model) payload.model_id = model;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
+
     const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
       method: "POST",
       headers: {
@@ -53,9 +56,9 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify(payload),
       cache: "no-store",
-      // Abort after 45s to avoid hanging serverless invocations
-      signal: (AbortSignal as any)?.timeout ? (AbortSignal as any).timeout(45000) : undefined,
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (!resp.ok) {
       let errorText: string;
