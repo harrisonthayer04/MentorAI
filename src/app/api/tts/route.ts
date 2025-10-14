@@ -34,6 +34,7 @@ export async function POST(req: Request) {
         text,
         model_id: model,
         voice_settings: { stability: 0.4, similarity_boost: 0.8 },
+        optimize_streaming_latency: 0,
         output_format: "mp3_44100_128",
       }),
       cache: "no-store",
