@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import PlayTTS from "../components/PlayTTS";
+import { getSystemPrompt } from "@/lib/system-prompt";
 
 type ChatMessage = {
   id: string;
@@ -87,7 +88,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         body: JSON.stringify({
           modelId,
           messages: [
-            { role: "system", content: "You are a helpful teaching assistant. You can call tools to save durable user memories and to rename the current conversation. On the first user message, propose a concise title and call rename_conversation. Also rename later if the topic clearly shifts. Use save_memory sparingly for lasting preferences or profile facts (keep entries concise). Please also keep responses to users concise as to not overwhelm them with too much information. If the user requests for more detailed responses, attempt to keep the scope of your responses limited as to not overwhelm them with too much information. Furthermore, your response will be read aloud to the user, so please make your responses flow and sound like a natural conversation." },
+            { role: "system", content: getSystemPrompt() },
             ...messages.map(({ role, content }) => ({ role, content })),
             { role: "user", content: text },
           ],
