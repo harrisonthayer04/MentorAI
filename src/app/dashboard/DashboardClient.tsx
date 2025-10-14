@@ -159,15 +159,39 @@ export default function DashboardClient() {
     })();
   };
 
-  // Auto-select the most recent chat if none is selected
+  // Auto-create welcome chat for new users instead of selecting existing chats
   useEffect(() => {
-    if (selectedChatId || chats.length === 0) return;
-    const latest = chats.reduce<ChatThread | null>((acc, c) => {
-      if (!acc) return c;
-      return c.createdAt > acc.createdAt ? c : acc;
-    }, null);
-    if (latest) setSelectedChatId(latest.id);
-  }, [chats, selectedChatId]);
+    if (selectedChatId || chats.length > 0) return;
+    
+    // Create a welcome chat for new users
+    const createWelcomeChat = async () => {
+      try {
+        const res = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "Welcome! Let's chat" }),
+        });
+        if (res.status === 401) {
+          router.push("/signin");
+          return;
+        }
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          conversation: { id: string; title: string; createdAt: string | number };
+        };
+        const normalized = {
+          ...data.conversation,
+          createdAt: new Date(data.conversation.createdAt as unknown as string | number).getTime(),
+        } as ChatThread;
+        setChats([normalized]);
+        setSelectedChatId(normalized.id);
+      } catch {
+        // ignore
+      }
+    };
+    
+    createWelcomeChat();
+  }, [chats, selectedChatId, router]);
 
   return (
     <div className="relative">

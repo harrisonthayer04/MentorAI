@@ -23,6 +23,16 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [speakEnabled, setSpeakEnabled] = useState<boolean>(false);
   const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map());
 
+  // Stop TTS when threadId changes (user leaves current chat)
+  useEffect(() => {
+    // Stop any currently playing audio when switching chats
+    try { 
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    } catch {}
+  }, [threadId]);
+
 
   const sendMessage = async () => {
     if (isLoading) return;
@@ -384,6 +394,8 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
     if (!enableAudio) setPlayBlocked(false);
   }, [enableAudio]);
 
+
+  // Stop TTS when component unmounts
   useEffect(() => {
     return () => {
       try { audioRef.current?.pause(); } catch {}
