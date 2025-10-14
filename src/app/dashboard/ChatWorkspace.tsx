@@ -218,6 +218,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               >
                 <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="z-ai/glm-4.6">GLM 4.6</option>
               </select>
             </div>
 
