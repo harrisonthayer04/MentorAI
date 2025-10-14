@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       const upstreamReqId = resp.headers.get("x-request-id") || resp.headers.get("x-amzn-requestid") || "";
       return NextResponse.json(
         { error: `ElevenLabs ${resp.status}: ${errorText}`, requestId: reqId, upstreamRequestId: upstreamReqId },
-        { status: 502, headers: { "x-request-id": reqId, "x-upstream-request-id": upstreamReqId } }
+        { status: resp.status, headers: { "x-request-id": reqId, "x-upstream-request-id": upstreamReqId } }
       );
     }
 

@@ -18,13 +18,24 @@ export async function synthesizeToUrl(
   });
 
   if (!res.ok) {
+    const reqId = res.headers.get("x-request-id") || undefined;
+    const upstreamId = res.headers.get("x-upstream-request-id") || undefined;
+    let bodyText = "";
     try {
-      const data = await res.json();
-      if (data?.error) throw new Error(data.error);
-      throw new Error(`TTS failed (${res.status})`);
+      bodyText = await res.text();
     } catch {
-      throw new Error(`TTS failed (${res.status})`);
+      // ignore
     }
+    let message = `TTS failed (${res.status})`;
+    try {
+      const data = bodyText ? JSON.parse(bodyText) : undefined;
+      const err = (data && typeof data.error === "string" ? data.error : "").trim();
+      if (err) message = err;
+    } catch {
+      if (bodyText && bodyText.trim()) message = `${message}: ${bodyText.trim()}`;
+    }
+    const suffix = [reqId ? `req=${reqId}` : "", upstreamId ? `up=${upstreamId}` : ""].filter(Boolean).join(" ");
+    throw new Error(suffix ? `${message} (${suffix})` : message);
   }
 
   const blob = await res.blob();
