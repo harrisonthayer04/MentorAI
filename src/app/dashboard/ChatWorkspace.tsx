@@ -12,6 +12,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   createdAt: number;
+  optimistic?: boolean;
 };
 
 export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
@@ -32,7 +33,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     if (!text) return;
     if (!threadId) return; // can't send without a selected thread
     const now = Date.now();
-    const userMsg: ChatMessage = { id: `u_${now}`, role: "user", content: text, createdAt: now };
+    const tempId = `local_${now}`;
+    const userMsg: ChatMessage = { id: tempId, role: "user", content: text, createdAt: now, optimistic: true };
     setMessages((prev) => {
       const next = [...prev, userMsg];
       if (threadId) messageCacheRef.current.set(threadId, next);
@@ -44,12 +46,31 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       setIsLoading(true);
       // Persist the user message on the server immediately
       try {
-        await fetch("/api/messages", {
+        const res = await fetch("/api/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ conversationId: threadId, role: "user", content: text }),
           keepalive: true,
         });
+        if (res.ok) {
+          const payload = (await res.json()) as
+            | { message: { id: string; role: "user" | "assistant"; content: string; createdAt: string } }
+            | undefined;
+          const saved = payload?.message;
+          if (saved) {
+            const normalized: ChatMessage = {
+              id: saved.id,
+              role: saved.role,
+              content: saved.content,
+              createdAt: new Date(saved.createdAt).getTime(),
+            };
+            setMessages((prev) => {
+              const next = prev.map((msg) => (msg.id === userMsg.id ? normalized : msg));
+              if (threadId) messageCacheRef.current.set(threadId, next);
+              return next;
+            });
+          }
+        }
       } catch {}
 
       // Trigger AI response; server will persist assistant reply
@@ -132,8 +153,16 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         const data = (await res.json()) as { messages: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string }> };
         if (cancelled) return;
         const normalized = (data.messages || []).map((m) => ({ ...m, createdAt: new Date(m.createdAt).getTime() } as ChatMessage));
-        setMessages(normalized);
-        messageCacheRef.current.set(threadId, normalized);
+        setMessages((prev) => {
+          const pendingLocals = prev.filter((m) => m.optimistic && m.id.startsWith("local_"));
+          if (pendingLocals.length === 0) {
+            messageCacheRef.current.set(threadId, normalized);
+            return normalized;
+          }
+          const merged = [...normalized, ...pendingLocals].sort((a, b) => a.createdAt - b.createdAt);
+          messageCacheRef.current.set(threadId, merged);
+          return merged;
+        });
       } catch {
         // ignore
       }
