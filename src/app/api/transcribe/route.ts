@@ -59,6 +59,15 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    const upstreamForm = new FormData();
+    const fileName = file.name || "audio.webm";
+    const blob = new Blob([buffer], { type: file.type || "audio/webm" });
+    upstreamForm.append("file", blob, fileName);
+    upstreamForm.append(
+      "model_id",
+      process.env.ELEVENLABS_STT_MODEL_ID || process.env.NEXT_PUBLIC_ELEVENLABS_STT_MODEL_ID || "eleven_multilingual_v2"
+    );
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000);
 
@@ -67,10 +76,9 @@ export async function POST(req: NextRequest) {
       headers: {
         "xi-api-key": apiKey,
         Accept: "application/json",
-        "Content-Type": "audio/webm", 
         "User-Agent": "MentorAI/1.0",
       },
-      body: buffer,
+      body: upstreamForm,
       cache: "no-store",
       signal: controller.signal,
     });
