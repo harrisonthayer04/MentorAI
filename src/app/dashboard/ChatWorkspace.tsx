@@ -375,7 +375,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                     isRecording ? "bg-red-600 hover:bg-red-700" : "bg-gray-600 hover:bg-gray-700"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  {isRecording ? "⏹️ Stop Recording" : "🎙️ Start Recording"}
+                  {isRecording ? "⏹️ Stop" : "🎙️ Start Recording"}
                 </button>
                 <button
                   type="submit"
