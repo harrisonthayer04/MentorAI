@@ -158,42 +158,45 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     }
   };
 
-  async function startRecording() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
-    chunksRef.current = [];
+  const startRecording = useCallback(async () => {
+    if (isRecording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      chunksRef.current = [];
 
-    mr.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
-    };
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
 
-    mr.onstop = async () => {
-      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-      await sendForTranscription(blob);
-      stream.getTracks().forEach((t) => t.stop());
-    };
+      mr.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        await sendForTranscription(blob);
+        stream.getTracks().forEach((t) => t.stop());
+      };
 
-    mediaRecorderRef.current = mr;
-    mr.start();
-    setIsRecording(true);
-  } catch (err) {
-    console.error(err);
-    alert("Microphone permission denied or unavailable.");
-  }
-}
-  async function stopRecording() {
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error(err);
+      alert("Microphone permission denied or unavailable.");
+    }
+  }, [isRecording]);
+
+  const stopRecording = useCallback(async () => {
+    if (!isRecording) return;
     try {
       mediaRecorderRef.current?.stop();
     } finally {
       setIsRecording(false);
     }
-  }
+  }, [isRecording]);
 
   async function sendForTranscription(audioBlob: Blob) {
     try {
       const form = new FormData();
-      form.append("audio", audioBlob, "clip.webm");
+      form.append("file", audioBlob, "clip.webm");
 
       const res = await fetch("/api/transcribe", { method: "POST", body: form });
       const payload: unknown = await res.json();
@@ -362,9 +365,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                   type="button"
                   onMouseDown={startRecording}
                   onMouseUp={stopRecording}
+                  onMouseLeave={stopRecording}
                   onTouchStart={startRecording}
                   onTouchEnd={stopRecording}
-                  disabled={isRecording || !threadId}
+                  onTouchCancel={stopRecording}
+                  disabled={!threadId}
                   className={`rounded-xl px-4 py-2 text-white ${
                     isRecording ? "bg-red-600 animate-pulse" : "bg-gray-500 hover:bg-gray-600"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
