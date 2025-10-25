@@ -25,7 +25,9 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
   const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map());
+
 
   // Stop TTS when threadId changes (user leaves current chat)
   useEffect(() => {
@@ -132,34 +134,51 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       setIsLoading(false);
     }
   };
-
-  async function startRecording() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
-    chunksRef.current = [];
-
-    mr.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
-    };
-
-    mr.onstop = async () => {
-      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-      await sendForTranscription(blob);
-      stream.getTracks().forEach((t) => t.stop());
-    };
-
-    mediaRecorderRef.current = mr;
-    mr.start();
-    setIsRecording(true);
-  } catch (err) {
-    console.error(err);
-    alert("Microphone permission denied or unavailable.");
+  async function toggleRecording() {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      await startRecording();
+    }
   }
-}
-  async function stopRecording() {
+  async function startRecording() {
     try {
-      mediaRecorderRef.current?.stop();
+      console.log("[mic] requesting microphone…");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      chunksRef.current = [];
+
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mr.onstop = async () => {
+        console.log("[mic] stopped, creating blob");
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        try {
+          streamRef.current?.getTracks().forEach((t) => t.stop());
+        } catch {}
+        streamRef.current = null;
+        await sendForTranscription(blob);
+      };
+
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setIsRecording(true);
+      console.log("[mic] started");
+    } catch (err) {
+      console.error("[mic] error:", err);
+      alert("Microphone permission denied or unavailable.");
+    }
+  }
+
+  function stopRecording() {
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+        console.log("[mic] stopping…");
+      }
     } finally {
       setIsRecording(false);
     }
@@ -167,25 +186,32 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
   async function sendForTranscription(audioBlob: Blob) {
     try {
+      console.log("[stt] sending blob size:", audioBlob.size);
       const form = new FormData();
       form.append("audio", audioBlob, "clip.webm");
 
       const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const json = await res.json();
+      const text = await res.text();
+      console.log("[stt] raw response:", text);
+
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {}
 
       if (!res.ok) throw new Error(json?.error || "Transcription failed");
 
       const transcript = (json?.text || "").trim();
       if (!transcript) {
-        return alert("No speech detected.");
+        alert("No speech detected.");
+        return;
       }
 
-      // Inject transcript as user's message (adapt if needed)
       setInputValue(transcript);
-      await sendMessage(); // you already have this function defined
+      await sendMessage(); // your existing message send handler
     } catch (e) {
-      console.error(e);
-      alert("Transcription error. See console.");
+      console.error("[stt] error:", e);
+      alert("Transcription error. Open the console for details.");
     }
   }
 
@@ -332,21 +358,25 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
               {/* Controls */}
               <div className="mt-3 flex justify-end gap-2">
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full border ${
+                      isRecording
+                        ? "border-red-400 text-red-500"
+                        : "border-gray-400 text-gray-500"
+                    }`}
+                  >
+                    {isRecording ? "Recording..." : "Idle"}
+                  </span>
                 <button
                   type="button"
-                  onMouseDown={startRecording}
-                  onMouseUp={stopRecording}
-                  onTouchStart={startRecording}
-                  onTouchEnd={stopRecording}
-                  disabled={isRecording || !threadId}
+                  onClick={toggleRecording}
+                  disabled={!threadId}
                   className={`rounded-xl px-4 py-2 text-white ${
-                    isRecording ? "bg-red-600 animate-pulse" : "bg-gray-500 hover:bg-gray-600"
+                    isRecording ? "bg-red-600 hover:bg-red-700" : "bg-gray-600 hover:bg-gray-700"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title={isRecording ? "Recording..." : "Hold to record"}
                 >
-                  {isRecording ? "Recording..." : "🎙️ Hold to Talk"}
+                  {isRecording ? "⏹️ Stop Recording" : "🎙️ Start Recording"}
                 </button>
-
                 <button
                   type="submit"
                   className="rounded-xl bg-[var(--color-brand)] hover:bg-[color-mix(in_oklab,var(--color-brand),black_10%)] text-white font-display font-semibold px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
