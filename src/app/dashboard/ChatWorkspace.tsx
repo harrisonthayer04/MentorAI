@@ -16,6 +16,30 @@ type ChatMessage = {
   optimistic?: boolean;
 };
 
+function parseChatApiResponse(payload: unknown): { content: string | null; error: string | null } {
+  if (typeof payload !== "object" || payload === null) {
+    return { content: null, error: null };
+  }
+  const rawContent = "content" in payload ? (payload as { content?: unknown }).content : undefined;
+  const rawError = "error" in payload ? (payload as { error?: unknown }).error : undefined;
+  return {
+    content: typeof rawContent === "string" ? rawContent : null,
+    error: typeof rawError === "string" ? rawError : null,
+  };
+}
+
+function parseTranscriptionResponse(payload: unknown): { text: string | null; error: string | null } {
+  if (typeof payload !== "object" || payload === null) {
+    return { text: null, error: null };
+  }
+  const rawText = "text" in payload ? (payload as { text?: unknown }).text : undefined;
+  const rawError = "error" in payload ? (payload as { error?: unknown }).error : undefined;
+  return {
+    text: typeof rawText === "string" ? rawText : null,
+    error: typeof rawError === "string" ? rawError : null,
+  };
+}
+
 export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
   const [modelId, setModelId] = useState<string>("gpt-5-chat");
   const [inputValue, setInputValue] = useState<string>("");
@@ -99,10 +123,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         }),
         keepalive: true,
       });
-      const data = await resp.json();
-      const content = data?.content ?? data?.error ?? "(no response)";
+      const payload: unknown = await resp.json();
+      const { content: assistantContent, error: assistantError } = parseChatApiResponse(payload);
+      const content = assistantContent ?? assistantError ?? "(no response)";
       // Do not append assistant locally (server will save it). Rely on polling below to render.
-      if (data?.error) {
+      if (assistantError) {
         const aiMsg: ChatMessage = {
           id: `a_${Date.now()}`,
           role: "assistant",
@@ -171,11 +196,12 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       form.append("audio", audioBlob, "clip.webm");
 
       const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const json = await res.json();
+      const payload: unknown = await res.json();
+      const { text, error } = parseTranscriptionResponse(payload);
 
-      if (!res.ok) throw new Error(json?.error || "Transcription failed");
+      if (!res.ok) throw new Error(error || "Transcription failed");
 
-      const transcript = (json?.text || "").trim();
+      const transcript = (text || "").trim();
       if (!transcript) {
         return alert("No speech detected.");
       }

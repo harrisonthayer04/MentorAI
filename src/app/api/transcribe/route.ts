@@ -5,6 +5,31 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 
+function extractTextFromResponse(payload: unknown): string {
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "text" in payload &&
+    typeof (payload as { text?: unknown }).text === "string"
+  ) {
+    return (payload as { text: string }).text;
+  }
+  return "";
+}
+
+function serializeError(payload: unknown): string {
+  if (typeof payload === "string") return payload;
+  if (payload instanceof Error) return payload.message;
+  if (typeof payload === "object" && payload !== null) {
+    try {
+      return JSON.stringify(payload);
+    } catch {
+      return "[object could not be stringified]";
+    }
+  }
+  return String(payload);
+}
+
 export async function POST(req: NextRequest) {
   const reqId = randomUUID();
 
@@ -54,8 +79,8 @@ export async function POST(req: NextRequest) {
     if (!resp.ok) {
       let errorText: string;
       try {
-        const j = await resp.json();
-        errorText = typeof j === "string" ? j : JSON.stringify(j);
+        const payload: unknown = await resp.json();
+        errorText = serializeError(payload);
       } catch {
         try {
           errorText = await resp.text();
@@ -89,8 +114,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await resp.json();
-    const text = data?.text ?? "";
+    const payload: unknown = await resp.json();
+    const text = extractTextFromResponse(payload);
 
     try {
       console.info(
