@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     upstreamForm.append("file", blob, fileName);
     upstreamForm.append(
       "model_id",
-      process.env.ELEVENLABS_STT_MODEL_ID || process.env.NEXT_PUBLIC_ELEVENLABS_STT_MODEL_ID || "eleven_multilingual_v2"
+      process.env.ELEVENLABS_STT_MODEL_ID || process.env.NEXT_PUBLIC_ELEVENLABS_STT_MODEL_ID || "scribe_v1"
     );
 
     const controller = new AbortController();
