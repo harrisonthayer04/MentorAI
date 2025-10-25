@@ -22,6 +22,9 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [speakEnabled, setSpeakEnabled] = useState<boolean>(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
   const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map());
 
   // Stop TTS when threadId changes (user leaves current chat)
@@ -129,6 +132,62 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       setIsLoading(false);
     }
   };
+
+  async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    chunksRef.current = [];
+
+    mr.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    mr.onstop = async () => {
+      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+      await sendForTranscription(blob);
+      stream.getTracks().forEach((t) => t.stop());
+    };
+
+    mediaRecorderRef.current = mr;
+    mr.start();
+    setIsRecording(true);
+  } catch (err) {
+    console.error(err);
+    alert("Microphone permission denied or unavailable.");
+  }
+}
+  async function stopRecording() {
+    try {
+      mediaRecorderRef.current?.stop();
+    } finally {
+      setIsRecording(false);
+    }
+  }
+
+  async function sendForTranscription(audioBlob: Blob) {
+    try {
+      const form = new FormData();
+      form.append("audio", audioBlob, "clip.webm");
+
+      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      const json = await res.json();
+
+      if (!res.ok) throw new Error(json?.error || "Transcription failed");
+
+      const transcript = (json?.text || "").trim();
+      if (!transcript) {
+        return alert("No speech detected.");
+      }
+
+      // Inject transcript as user's message (adapt if needed)
+      setInputValue(transcript);
+      await sendMessage(); // you already have this function defined
+    } catch (e) {
+      console.error(e);
+      alert("Transcription error. See console.");
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,10 +315,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 {speakEnabled ? "Assistant will speak responses" : "Assistant will reply with text only"}
               </div>
             </div>
-
-            {/* Chat input */}
             <form onSubmit={handleSubmit} className="p-4 mt-auto">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Your message</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Your message
+              </label>
+
               <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -269,7 +329,24 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 className="w-full rounded-xl bg-white/80 dark:bg-gray-900/40 border border-white/40 dark:border-white/10 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/40 resize-none"
                 disabled={!threadId}
               />
-              <div className="mt-3 flex justify-end">
+
+              {/* Controls */}
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onMouseDown={startRecording}
+                  onMouseUp={stopRecording}
+                  onTouchStart={startRecording}
+                  onTouchEnd={stopRecording}
+                  disabled={isRecording || !threadId}
+                  className={`rounded-xl px-4 py-2 text-white ${
+                    isRecording ? "bg-red-600 animate-pulse" : "bg-gray-500 hover:bg-gray-600"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={isRecording ? "Recording..." : "Hold to record"}
+                >
+                  {isRecording ? "Recording..." : "🎙️ Hold to Talk"}
+                </button>
+
                 <button
                   type="submit"
                   className="rounded-xl bg-[var(--color-brand)] hover:bg-[color-mix(in_oklab,var(--color-brand),black_10%)] text-white font-display font-semibold px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
