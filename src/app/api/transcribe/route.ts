@@ -3,17 +3,21 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 
 export async function POST(req: NextRequest) {
   const reqId = randomUUID();
 
   try {
     const form = await req.formData();
-    const file = form.get("file") as File | null;
 
-    if (!file) {
-      return NextResponse.json({ error: "Missing audio file" }, { status: 400 });
+    // Accept either "audio" or "file" from the client
+    const uploaded = (form.get("audio") || form.get("file")) as Blob | null;
+    if (!(uploaded instanceof Blob)) {
+      return NextResponse.json(
+        { error: "Missing audio file", requestId: reqId },
+        { status: 400 }
+      );
     }
 
     const apiKey =
@@ -22,18 +26,20 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY;
 
     if (!apiKey) {
-      return NextResponse.json({ error: "Missing ELEVENLABS_API_KEY" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Missing ELEVENLABS_API_KEY", requestId: reqId },
+        { status: 500 }
+      );
     }
 
-    try {
-      console.info(
-        `[api/transcribe] req=${reqId} start name=${file.name} type=${file.type} size=${file.size}`
-      );
-    } catch {}
+    // Build multipart body for ElevenLabs STT
+    const contentType = (uploaded as any).type || "audio/webm";
+    const filename = "audio.webm";
+    const body = new FormData();
+    body.append("file", new Blob([await uploaded.arrayBuffer()], { type: contentType }), filename);
+    body.append("model_id", "scribe_v1"); // STT model
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
+    // IMPORTANT: do NOT set Content-Type manually; fetch sets the boundary
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000);
 
@@ -41,38 +47,30 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: {
         "xi-api-key": apiKey,
-        Accept: "application/json",
-        "Content-Type": "audio/webm", 
+        "Accept": "application/json",
         "User-Agent": "MentorAI/1.0",
       },
-      body: buffer,
+      body,
       cache: "no-store",
       signal: controller.signal,
     });
+
     clearTimeout(timeoutId);
 
     if (!resp.ok) {
-      let errorText: string;
+      let errorText = "";
       try {
         const j = await resp.json();
         errorText = typeof j === "string" ? j : JSON.stringify(j);
       } catch {
-        try {
-          errorText = await resp.text();
-        } catch {
-          errorText = "(no details)";
-        }
+        try { errorText = await resp.text(); } catch { errorText = "(no details)"; }
       }
-      try {
-        console.error(
-          `[api/transcribe] req=${reqId} upstream_error status=${resp.status} details=${errorText}`
-        );
-      } catch {}
 
       const upstreamReqId =
         resp.headers.get("x-request-id") ||
         resp.headers.get("x-amzn-requestid") ||
         "";
+
       return NextResponse.json(
         {
           error: `ElevenLabs ${resp.status}: ${errorText}`,
@@ -92,12 +90,6 @@ export async function POST(req: NextRequest) {
     const data = await resp.json();
     const text = data?.text ?? "";
 
-    try {
-      console.info(
-        `[api/transcribe] req=${reqId} success textLen=${text.length}`
-      );
-    } catch {}
-
     return NextResponse.json(
       { text, requestId: reqId },
       {
@@ -110,15 +102,9 @@ export async function POST(req: NextRequest) {
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    try {
-      console.error(`[api/transcribe] fatal_error req=${reqId} msg=${message}`);
-    } catch {}
     return NextResponse.json(
       { error: message, requestId: reqId },
-      {
-        status: 500,
-        headers: { "x-request-id": reqId },
-      }
+      { status: 500, headers: { "x-request-id": reqId } }
     );
   }
 }
