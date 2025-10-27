@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: "asc" },
-    select: { id: true, role: true, content: true, createdAt: true },
+    select: { id: true, role: true, content: true, speechContent: true, createdAt: true },
   });
   return NextResponse.json({ messages });
 }
@@ -22,10 +22,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { conversationId, role, content } = (await req.json()) as {
+  const { conversationId, role, content, speechContent } = (await req.json()) as {
     conversationId?: string;
     role?: "user" | "assistant" | "system";
     content?: string;
+    speechContent?: string;
   };
   if (!conversationId || !role || typeof content !== "string") {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
@@ -33,8 +34,8 @@ export async function POST(req: Request) {
   const conv = await prisma.conversation.findFirst({ where: { id: conversationId, userId: session.user.id }, select: { id: true } });
   if (!conv) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const message = await prisma.message.create({
-    data: { conversationId, role, content },
-    select: { id: true, role: true, content: true, createdAt: true },
+    data: { conversationId, role, content, speechContent: speechContent || null },
+    select: { id: true, role: true, content: true, speechContent: true, createdAt: true },
   });
   await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
   return NextResponse.json({ message });

@@ -12,18 +12,21 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  speechContent?: string | null;
   createdAt: number;
   optimistic?: boolean;
 };
 
-function parseChatApiResponse(payload: unknown): { content: string | null; error: string | null } {
+function parseChatApiResponse(payload: unknown): { content: string | null; speechContent: string | null; error: string | null } {
   if (typeof payload !== "object" || payload === null) {
-    return { content: null, error: null };
+    return { content: null, speechContent: null, error: null };
   }
   const rawContent = "content" in payload ? (payload as { content?: unknown }).content : undefined;
+  const rawSpeechContent = "speechContent" in payload ? (payload as { speechContent?: unknown }).speechContent : undefined;
   const rawError = "error" in payload ? (payload as { error?: unknown }).error : undefined;
   return {
     content: typeof rawContent === "string" ? rawContent : null,
+    speechContent: typeof rawSpeechContent === "string" ? rawSpeechContent : null,
     error: typeof rawError === "string" ? rawError : null,
   };
 }
@@ -252,7 +255,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       try {
         const res = await fetch(`/api/messages?conversationId=${encodeURIComponent(threadId)}`, { cache: "no-store" });
         if (!res.ok) return;
-        const data = (await res.json()) as { messages: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string }> };
+        const data = (await res.json()) as { messages: Array<{ id: string; role: "user" | "assistant"; content: string; speechContent?: string | null; createdAt: string }> };
         if (cancelled) return;
         const normalized = (data.messages || []).map((m) => ({ ...m, createdAt: new Date(m.createdAt).getTime() } as ChatMessage));
         setMessages((prev) => {
@@ -479,7 +482,10 @@ function ChatPanel({
 
   const latestAssistantText = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (messages[i].role === "assistant") return messages[i].content;
+      if (messages[i].role === "assistant") {
+        // Use speechContent if available, otherwise fall back to content
+        return messages[i].speechContent || messages[i].content;
+      }
     }
     return "";
   }, [messages]);
@@ -677,7 +683,7 @@ function ChatPanel({
 
             {m.role === "assistant" && m.content && (
             <PlayTTS
-              text={m.content}
+              text={m.speechContent || m.content}
               className="px-2 py-1 rounded bg-blue-600 text-white text-sm self-start"
               playbackRate={playbackRate}
             />

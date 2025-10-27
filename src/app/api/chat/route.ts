@@ -19,6 +19,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function parseResponseContent(rawContent: string): { speech: string; display: string } {
+  const speechMatch = rawContent.match(/<speech>([\s\S]*?)<\/speech>/i);
+  const displayMatch = rawContent.match(/<display>([\s\S]*?)<\/display>/i);
+  
+  const speech = speechMatch ? speechMatch[1].trim() : "";
+  const display = displayMatch ? displayMatch[1].trim() : "";
+  
+  // Fallback: if no tags found, use raw content for both
+  if (!speech && !display) {
+    return { speech: rawContent, display: rawContent };
+  }
+  
+  // If only one is present, use it for both
+  if (!speech && display) {
+    return { speech: display.substring(0, 500), display };
+  }
+  if (speech && !display) {
+    return { speech, display: speech };
+  }
+  
+  return { speech, display };
+}
+
 const MODEL_SLUGS: Record<string, string> = {
   "minimax/minimax-m2:free": "minimax/minimax-m2:free",
   "x-ai/grok-4-fast": "x-ai/grok-4-fast",
@@ -94,6 +117,8 @@ export async function POST(req: Request) {
 
     const convoMessages: OpenAIMessage[] = Array.isArray(messages) ? [...messages] : [];
     let finalContent = "";
+    let finalSpeechContent = "";
+    let finalDisplayContent = "";
 
     // Tool loop (bounded)
     for (let i = 0; i < 3; i++) {
@@ -207,21 +232,32 @@ export async function POST(req: Request) {
       }
 
       finalContent = msg?.content ?? "";
+      const parsed = parseResponseContent(finalContent);
+      finalSpeechContent = parsed.speech;
+      finalDisplayContent = parsed.display;
       break;
     }
 
     // Persist assistant message if any
-    if (conversationId && finalContent) {
+    if (conversationId && (finalDisplayContent || finalContent)) {
       const conv = await prisma.conversation.findFirst({ where: { id: conversationId, userId }, select: { id: true } });
       if (conv) {
         await prisma.message.create({
-          data: { conversationId, role: "assistant", content: finalContent },
+          data: { 
+            conversationId, 
+            role: "assistant", 
+            content: finalDisplayContent || finalContent,
+            speechContent: finalSpeechContent || null
+          },
         });
         await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
       }
     }
 
-    return NextResponse.json({ content: finalContent });
+    return NextResponse.json({ 
+      content: finalDisplayContent || finalContent,
+      speechContent: finalSpeechContent || finalDisplayContent || finalContent
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
