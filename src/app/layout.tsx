@@ -1,6 +1,7 @@
 import "./globals.css";
 import "katex/dist/katex.min.css";
 import { Roboto, Open_Sans } from 'next/font/google';
+import Providers from './providers';
 
 // Configure the fonts
 const roboto = Roboto({ 
@@ -23,7 +24,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-white dark:bg-gray-900">
       <body className={`${roboto.variable} ${openSans.variable} font-sans antialiased`}>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

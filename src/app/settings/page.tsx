@@ -5,6 +5,27 @@ import { signOut } from "next-auth/react";
 
 type Memory = { id: string; title: string | null; content: string; createdAt: string; updatedAt: string };
 
+const DEFAULT_ACCENT_COLOR = "#9B5DE5";
+
+const PRESET_COLORS = [
+  { name: "Purple", color: "#9B5DE5" },
+  { name: "Blue", color: "#3B82F6" },
+  { name: "Green", color: "#10B981" },
+  { name: "Pink", color: "#EC4899" },
+  { name: "Orange", color: "#F59E0B" },
+  { name: "Red", color: "#EF4444" },
+  { name: "Teal", color: "#14B8A6" },
+  { name: "Indigo", color: "#6366F1" },
+];
+
+function applyAccentColor(color: string) {
+  if (typeof document === "undefined") return;
+  document.documentElement.style.setProperty("--color-brand", color);
+  document.documentElement.style.setProperty("--color-accent-1", color);
+  document.documentElement.style.setProperty("--color-accent-2", color);
+  document.documentElement.style.setProperty("--color-ring", color);
+}
+
 export default function SettingsPage() {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -12,6 +33,7 @@ export default function SettingsPage() {
   const [newTitle, setNewTitle] = useState<string>("");
   const [newContent, setNewContent] = useState<string>("");
   const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
+  const [accentColor, setAccentColor] = useState<string>(DEFAULT_ACCENT_COLOR);
 
   const refresh = async () => {
     setLoading(true);
@@ -46,7 +68,27 @@ export default function SettingsPage() {
 
   useEffect(() => {
     refresh();
+    // Load saved accent color
+    try {
+      const saved = localStorage.getItem("accent_color");
+      if (saved) {
+        setAccentColor(saved);
+        applyAccentColor(saved);
+      }
+    } catch {
+      // ignore
+    }
   }, []);
+
+  const handleColorChange = (color: string) => {
+    setAccentColor(color);
+    applyAccentColor(color);
+    try {
+      localStorage.setItem("accent_color", color);
+    } catch {
+      // ignore
+    }
+  };
 
   const createMemory = async () => {
     const title = newTitle.trim();
@@ -161,6 +203,96 @@ export default function SettingsPage() {
             </button>
           </div>
           <p className="mt-2 text-xs text-gray-700 dark:text-gray-300">This permanently deletes your account and all data.</p>
+        </div>
+
+        <div className="rounded-2xl bg-white/70 dark:bg-white/10 backdrop-blur border border-white/40 dark:border-white/10 shadow p-6">
+          <h2 className="text-lg font-display font-semibold text-gray-900 dark:text-white">Theme</h2>
+          <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">Customize your accent color</p>
+          
+          <div className="mt-4 space-y-4">
+            {/* Preset Colors */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Quick Presets
+              </label>
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+                {PRESET_COLORS.map((preset) => (
+                  <button
+                    key={preset.color}
+                    onClick={() => handleColorChange(preset.color)}
+                    className="group relative aspect-square rounded-xl border-2 transition-all hover:scale-110"
+                    style={{
+                      backgroundColor: preset.color,
+                      borderColor: accentColor === preset.color ? preset.color : "transparent",
+                      boxShadow: accentColor === preset.color ? `0 0 0 2px white, 0 0 0 4px ${preset.color}` : "none",
+                    }}
+                    title={preset.name}
+                  >
+                    {accentColor === preset.color && (
+                      <span className="absolute inset-0 flex items-center justify-center text-white text-xl">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Color Picker */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Custom Color
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={accentColor}
+                  onChange={(e) => handleColorChange(e.target.value)}
+                  className="h-12 w-24 rounded-xl border-2 border-white/40 dark:border-white/10 cursor-pointer"
+                  title="Choose custom color"
+                />
+                <input
+                  type="text"
+                  value={accentColor}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setAccentColor(val);
+                    if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                      handleColorChange(val);
+                    }
+                  }}
+                  placeholder="#9B5DE5"
+                  className="flex-1 rounded-xl bg-white/80 dark:bg-white/10 border border-white/40 dark:border-white/10 px-3 py-2 text-sm font-mono uppercase"
+                />
+                <button
+                  onClick={() => handleColorChange(DEFAULT_ACCENT_COLOR)}
+                  className="px-3 py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  title="Reset to default"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="p-4 rounded-xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-white/5">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview</p>
+              <div className="flex gap-2">
+                <button
+                  className="px-4 py-2 rounded-xl text-white font-semibold transition-colors"
+                  style={{ backgroundColor: accentColor }}
+                >
+                  Primary Button
+                </button>
+                <div
+                  className="px-4 py-2 rounded-xl border-2 font-semibold transition-colors"
+                  style={{ borderColor: accentColor, color: accentColor }}
+                >
+                  Outlined Button
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-2xl bg-white/70 dark:bg-white/10 backdrop-blur border border-white/40 dark:border-white/10 shadow p-6">
