@@ -51,6 +51,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [speakEnabled, setSpeakEnabled] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
+  const [autoSendTranscription, setAutoSendTranscription] = useState<boolean>(true);
 
   const clampPlaybackRate = useCallback((rate: number) => {
     if (!Number.isFinite(rate)) return 1;
@@ -167,6 +168,35 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     }
   };
 
+  const sendForTranscription = useCallback(async (audioBlob: Blob) => {
+    try {
+      const form = new FormData();
+      form.append("file", audioBlob, "clip.webm");
+
+      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      const payload: unknown = await res.json();
+      const { text, error } = parseTranscriptionResponse(payload);
+
+      if (!res.ok) throw new Error(error || "Transcription failed");
+
+      const transcript = (text || "").trim();
+      if (!transcript) {
+        return alert("No speech detected.");
+      }
+
+      // Set transcript in input box
+      setInputValue(transcript);
+      
+      // Auto-send if enabled, otherwise wait for user to click send
+      if (autoSendTranscription) {
+        await sendMessage();
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Transcription error. See console.");
+    }
+  }, [autoSendTranscription, sendMessage]);
+
   const startRecording = useCallback(async () => {
     if (isRecording) return;
     try {
@@ -191,7 +221,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       console.error(err);
       alert("Microphone permission denied or unavailable.");
     }
-  }, [isRecording]);
+  }, [isRecording, sendForTranscription]);
 
   const stopRecording = useCallback(async () => {
     if (!isRecording) return;
@@ -201,31 +231,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       setIsRecording(false);
     }
   }, [isRecording]);
-
-  async function sendForTranscription(audioBlob: Blob) {
-    try {
-      const form = new FormData();
-      form.append("file", audioBlob, "clip.webm");
-
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const payload: unknown = await res.json();
-      const { text, error } = parseTranscriptionResponse(payload);
-
-      if (!res.ok) throw new Error(error || "Transcription failed");
-
-      const transcript = (text || "").trim();
-      if (!transcript) {
-        return alert("No speech detected.");
-      }
-
-      // Inject transcript as user's message (adapt if needed)
-      setInputValue(transcript);
-      await sendMessage(); // you already have this function defined
-    } catch (e) {
-      console.error(e);
-      alert("Transcription error. See console.");
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,6 +303,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         const parsed = clampPlaybackRate(parseFloat(rawRate));
         setPlaybackRate(parsed);
       }
+      const rawAutoSend = localStorage.getItem("bm_auto_send_transcription");
+      if (rawAutoSend != null) setAutoSendTranscription(rawAutoSend === "true");
     } catch {
       // ignore
     }
@@ -319,6 +326,14 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       // ignore
     }
   }, [playbackRate]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bm_auto_send_transcription", String(autoSendTranscription));
+    } catch {
+      // ignore
+    }
+  }, [autoSendTranscription]);
 
   return (
     <div className="w-full h-full">
@@ -399,6 +414,36 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 />
               </div>
             </div>
+
+            {/* Auto-send transcription toggle */}
+            <div className="px-4 py-3 border-b border-white/40 dark:border-white/10">
+              <div className="flex items-center justify-between">
+                <label htmlFor="auto-send-toggle" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Auto-send voice input
+                </label>
+                <button
+                  id="auto-send-toggle"
+                  role="switch"
+                  aria-checked={autoSendTranscription}
+                  onClick={() => setAutoSendTranscription((v) => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    autoSendTranscription ? "bg-[var(--color-brand)]" : "bg-gray-300 dark:bg-gray-700"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                      autoSendTranscription ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                {autoSendTranscription 
+                  ? "Voice messages send immediately after transcription" 
+                  : "Voice messages wait in the input box for manual send"}
+              </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="p-4 mt-auto">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Your message
