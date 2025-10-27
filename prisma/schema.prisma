@@ -89,6 +89,7 @@ model Message {
   conversationId String
   role           MessageRole
   content        String      @db.Text
+  speechContent  String?     @db.Text
   createdAt      DateTime    @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
