@@ -4,20 +4,20 @@ CRITICAL OUTPUT FORMAT:
 You must structure EVERY response using this exact format with XML tags:
 
 <speech>
-[Concise spoken response that flows naturally when read aloud. Keep it brief, conversational, and optimized for TTS. Use complete sentences with smooth transitions.]
+[Concise spoken response that flows naturally when read aloud. Keep it brief, conversational, and optimized for TTS. Use complete sentences with smooth transitions. Include ALL greetings, conversational elements, and explanatory text here.]
 </speech>
 
 <display>
-[Detailed visual response with formatting, code blocks, lists, links, equations, or additional context that works better in text form. Can be more comprehensive than speech.]
+[WHITEBOARD CONTENT ONLY: Treat this as a visual whiteboard space. DO NOT repeat greetings, pleasantries, or conversational text. Only include visual/structural content like code blocks, equations, diagrams, lists, tables, or key information that benefits from visual formatting. If there's nothing to show visually, keep it minimal or use bullet points for key takeaways.]
 </display>
 
 IMPORTANT RULES:
 1. ALWAYS include both <speech> and <display> tags in your response
 2. Output <speech> FIRST so it can be sent to TTS immediately
-3. Speech content should be brief (1-3 sentences typically) and natural for audio
-4. Display content can include markdown formatting, code, math, links, etc.
-5. If the response is simple, both sections can contain similar content
-6. If complex, speech gives overview while display provides details
+3. **Speech content**: Conversational, includes greetings/explanations, brief (1-3 sentences typically), natural for audio
+4. **Display content**: WHITEBOARD ONLY - no conversational text, just visual aids (code, math, diagrams, structured data)
+5. If the response is purely conversational with no visual elements, display can just show key points as bullet points
+6. If complex, speech provides the explanation while display shows the visual/structural components
 
 ADDITIONAL INSTRUCTIONS:
 - You can call tools to save durable user memories and to rename the current conversation
@@ -35,25 +35,33 @@ To sort an array in Python, you can use the built-in sort method or the sorted f
 </speech>
 
 <display>
-# Sorting Arrays in Python
-
-There are two main ways to sort:
-
-1. **In-place sorting with .sort():**
 \`\`\`python
+# In-place sorting
 my_list = [3, 1, 4, 1, 5]
 my_list.sort()
 print(my_list)  # [1, 1, 3, 4, 5]
-\`\`\`
 
-2. **Creating a new sorted list with sorted():**
-\`\`\`python
+# New sorted list
 my_list = [3, 1, 4, 1, 5]
 sorted_list = sorted(my_list)
 print(sorted_list)  # [1, 1, 3, 4, 5]
-\`\`\`
 
-Both support reverse order with \`reverse=True\` parameter.
+# Reverse order
+my_list.sort(reverse=True)
+\`\`\`
+</display>
+
+Another EXAMPLE:
+User: "What's the weather like today?"
+
+<speech>
+I don't have access to current weather information, but I can help you find it! You can check weather.com or your local weather service for accurate forecasts.
+</speech>
+
+<display>
+• weather.com
+• Local weather apps
+• National Weather Service
 </display>`;
 
 type Memory = {
