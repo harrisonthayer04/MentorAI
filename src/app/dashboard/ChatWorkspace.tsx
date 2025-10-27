@@ -41,12 +41,18 @@ function parseTranscriptionResponse(payload: unknown): { text: string | null; er
 }
 
 export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
-  const [modelId, setModelId] = useState<string>("gpt-5-chat");
+  const [modelId, setModelId] = useState<string>("gemini-2.5-flash-lite");
   const [inputValue, setInputValue] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [speakEnabled, setSpeakEnabled] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState<number>(1);
+
+  const clampPlaybackRate = useCallback((rate: number) => {
+    if (!Number.isFinite(rate)) return 1;
+    return Math.min(1.5, Math.max(0.75, rate));
+  }, []);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map());
@@ -282,12 +288,17 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   // Load persisted settings
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("bm_speak_enabled");
-      if (raw != null) setSpeakEnabled(raw === "true");
+      const rawSpeak = localStorage.getItem("bm_speak_enabled");
+      if (rawSpeak != null) setSpeakEnabled(rawSpeak === "true");
+      const rawRate = localStorage.getItem("bm_playback_rate");
+      if (rawRate != null) {
+        const parsed = clampPlaybackRate(parseFloat(rawRate));
+        setPlaybackRate(parsed);
+      }
     } catch {
       // ignore
     }
-  }, []);
+  }, [clampPlaybackRate]);
 
   // Persist speak setting
   useEffect(() => {
@@ -297,6 +308,14 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       // ignore
     }
   }, [speakEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bm_playback_rate", String(playbackRate));
+    } catch {
+      // ignore
+    }
+  }, [playbackRate]);
 
   return (
     <div className="w-full h-full">
@@ -312,8 +331,15 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 onChange={(e) => setModelId(e.target.value)}
                 className="w-full rounded-xl bg-white/70 dark:bg-gray-900/40 border border-white/40 dark:border-white/10 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/40"
               >
+                <option value="minimax/minimax-m2:free">MiniMax M2 Free</option>
+                <option value="x-ai/grok-4-fast">Grok 4 Fast</option>
+                <option value="x-ai/grok-code-fast-1">Grok Code Fast 1</option>
                 <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5</option>
+                <option value="qwen/qwen3-235b-a22b-2507">Qwen3 235B A22B 2507</option>
+                <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+                <option value="deepseek/deepseek-v3.1-terminus">DeepSeek V3.1 Terminus</option>
                 <option value="z-ai/glm-4.6">GLM 4.6</option>
               </select>
             </div>
@@ -342,6 +368,32 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               </div>
               <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                 {speakEnabled ? "Assistant will speak responses" : "Assistant will reply with text only"}
+              </div>
+              <div className="mt-4">
+                <label
+                  htmlFor="speech-rate"
+                  className={`text-sm font-medium flex items-center justify-between ${
+                    speakEnabled ? "text-gray-700 dark:text-gray-300" : "text-gray-400 dark:text-gray-500"
+                  }`}
+                >
+                  Playback speed
+                  <span className="text-xs">{playbackRate.toFixed(2)}x</span>
+                </label>
+                <input
+                  id="speech-rate"
+                  type="range"
+                  min="0.75"
+                  max="1.5"
+                  step="0.05"
+                  value={playbackRate}
+                  onChange={(e) => setPlaybackRate(clampPlaybackRate(parseFloat(e.target.value)))}
+                  className="w-full mt-2"
+                  aria-valuemin={0.75}
+                  aria-valuemax={1.5}
+                  aria-valuenow={playbackRate}
+                  aria-label="Playback speed"
+                  disabled={!speakEnabled}
+                />
               </div>
             </div>
             <form onSubmit={handleSubmit} className="p-4 mt-auto">
@@ -392,14 +444,24 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
         {/* Right: Conversation area (3/4) */}
         <div className="md:col-span-9 min-h-0 h-full">
-          <ChatPanel messages={messages} isLoading={isLoading} enableAudio={speakEnabled} />
+          <ChatPanel messages={messages} isLoading={isLoading} enableAudio={speakEnabled} playbackRate={playbackRate} />
         </div>
       </div>
     </div>
   );
 }
 
-function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage[]; isLoading: boolean; enableAudio: boolean }) {
+function ChatPanel({
+  messages,
+  isLoading,
+  enableAudio,
+  playbackRate,
+}: {
+  messages: ChatMessage[];
+  isLoading: boolean;
+  enableAudio: boolean;
+  playbackRate: number;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const lastSpokenRef = useRef<string>("");
@@ -422,14 +484,14 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
     return "";
   }, [messages]);
 
-  const speakWithWebSpeech = useCallback((text: string) => {
+  const speakWithWebSpeech = useCallback((text: string, rate: number) => {
     try {
       if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
       const trimmed = (text || "").trim();
       if (!trimmed) return;
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(trimmed);
-      utterance.rate = 1.0;
+      utterance.rate = rate;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
       window.speechSynthesis.speak(utterance);
@@ -459,10 +521,10 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
         const resp = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, playbackRate }),
         });
         if (!resp.ok) {
-          speakWithWebSpeech(text);
+          speakWithWebSpeech(text, playbackRate);
           lastSpokenRef.current = text;
           return;
         }
@@ -486,9 +548,10 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
         } catch {
           setPlayBlocked(true);
         }
+        audio.playbackRate = playbackRate;
         lastSpokenRef.current = text;
       } catch {
-        speakWithWebSpeech(text);
+        speakWithWebSpeech(text, playbackRate);
         lastSpokenRef.current = text;
       }
     };
@@ -613,7 +676,11 @@ function ChatPanel({ messages, isLoading, enableAudio }: { messages: ChatMessage
             </div>
 
             {m.role === "assistant" && m.content && (
-              <PlayTTS text={m.content} className="px-2 py-1 rounded bg-blue-600 text-white text-sm self-start" />
+            <PlayTTS
+              text={m.content}
+              className="px-2 py-1 rounded bg-blue-600 text-white text-sm self-start"
+              playbackRate={playbackRate}
+            />
             )}
           </div>
         ))}

@@ -7,11 +7,13 @@ export default function PlayTTS({
   voiceId,
   modelId,
   className,
+  playbackRate = 1,
 }: {
   text: string;
   voiceId?: string;
   modelId?: string;
   className?: string;
+  playbackRate?: number;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -20,6 +22,7 @@ export default function PlayTTS({
       setLoading(true);
       const url = await synthesizeToUrl(text, { voiceId, modelId });
       const audio = new Audio(url);
+      audio.playbackRate = Math.max(0.5, Math.min(playbackRate, 2));
       audio.play().catch(console.error);
     } catch (e) {
       console.error(e);

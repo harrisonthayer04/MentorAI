@@ -20,8 +20,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const MODEL_SLUGS: Record<string, string> = {
-  "gemini-2.5-flash-lite":"google/gemini-2.5-flash-lite",
-  "gemini-2.5-pro":"google/gemini-2.5-pro"
+  "minimax/minimax-m2:free": "minimax/minimax-m2:free",
+  "x-ai/grok-4-fast": "x-ai/grok-4-fast",
+  "x-ai/grok-code-fast-1": "x-ai/grok-code-fast-1",
+  "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
+  "gemini-2.5-pro": "google/gemini-2.5-pro",
+  "anthropic/claude-haiku-4.5": "anthropic/claude-haiku-4.5",
+  "qwen/qwen3-235b-a22b-2507": "qwen/qwen3-235b-a22b-2507",
+  "openai/gpt-oss-120b": "openai/gpt-oss-120b",
+  "deepseek/deepseek-v3.1-terminus": "deepseek/deepseek-v3.1-terminus",
+  "z-ai/glm-4.6": "z-ai/glm-4.6",
 };
 
 export async function POST(req: Request) {
