@@ -56,12 +56,36 @@ print(sorted_list)  # [1, 1, 3, 4, 5]
 Both support reverse order with \`reverse=True\` parameter.
 </display>`;
 
-export function getSystemPrompt(_context?: {
+type Memory = {
+  id: string;
+  title: string | null;
+  content: string;
+};
+
+export function getSystemPrompt(context?: {
   userId?: string;
   conversationId?: string;
   userPreferences?: Record<string, unknown>;
+  memories?: Memory[];
 }): string {
-  // For now, return the static prompt
-  // In the future, possibly use dynamic prompts if needed
-  return SYSTEM_PROMPT;
+  let prompt = SYSTEM_PROMPT;
+  
+  // Add user memories if available
+  if (context?.memories && context.memories.length > 0) {
+    const memoriesSection = `
+
+USER MEMORIES & PREFERENCES:
+The user has saved the following information about themselves. Use this context to personalize your responses and remember important details:
+
+${context.memories.map((m, i) => {
+  const title = m.title ? `**${m.title}**` : `Memory ${i + 1}`;
+  return `${title}: ${m.content}`;
+}).join('\n\n')}
+
+Remember to reference these details naturally when relevant to provide a personalized experience.`;
+    
+    prompt = prompt + memoriesSection;
+  }
+  
+  return prompt;
 }

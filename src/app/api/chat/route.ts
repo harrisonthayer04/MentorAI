@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getSystemPrompt } from "@/lib/system-prompt";
 
 type IncomingMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -80,6 +81,20 @@ export async function POST(req: Request) {
 
     const model = MODEL_SLUGS[modelId] ?? modelId;
 
+    // Fetch user memories
+    const memories = await prisma.memory.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, title: true, content: true },
+    });
+
+    // Generate system prompt with user memories
+    const systemPrompt = getSystemPrompt({
+      userId,
+      conversationId,
+      memories,
+    });
+
     // Define tools for the model to call
     const tools = [
       {
@@ -115,7 +130,11 @@ export async function POST(req: Request) {
       },
     ];
 
-    const convoMessages: OpenAIMessage[] = Array.isArray(messages) ? [...messages] : [];
+    // Build conversation messages, replacing any system message with our enhanced one
+    const convoMessages: OpenAIMessage[] = [
+      { role: "system", content: systemPrompt },
+      ...(Array.isArray(messages) ? messages.filter(m => m.role !== "system") : [])
+    ];
     let finalContent = "";
     let finalSpeechContent = "";
     let finalDisplayContent = "";

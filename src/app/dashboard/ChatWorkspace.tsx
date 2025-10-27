@@ -6,7 +6,6 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import PlayTTS from "../components/PlayTTS";
-import { getSystemPrompt } from "@/lib/system-prompt";
 
 type ChatMessage = {
   id: string;
@@ -125,7 +124,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         body: JSON.stringify({
           modelId,
           messages: [
-            { role: "system", content: getSystemPrompt() },
             ...messages.map(({ role, content }) => ({ role, content })),
             { role: "user", content: text },
           ],
