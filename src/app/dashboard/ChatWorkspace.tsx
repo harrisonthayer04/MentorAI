@@ -72,9 +72,9 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   }, [threadId]);
 
 
-  const sendMessage = async () => {
+  const sendMessage = async (messageText?: string) => {
     if (isLoading) return;
-    const text = inputValue.trim();
+    const text = (messageText ?? inputValue).trim();
     if (!text) return;
     if (!threadId) return; // can't send without a selected thread
     const now = Date.now();
@@ -184,12 +184,13 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         return alert("No speech detected.");
       }
 
-      // Set transcript in input box
-      setInputValue(transcript);
-      
       // Auto-send if enabled, otherwise wait for user to click send
       if (autoSendTranscription) {
-        await sendMessage();
+        // Pass transcript directly to sendMessage to avoid state timing issues
+        await sendMessage(transcript);
+      } else {
+        // Set transcript in input box for manual review/editing
+        setInputValue(transcript);
       }
     } catch (e) {
       console.error(e);
