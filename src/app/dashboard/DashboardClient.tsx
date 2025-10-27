@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ThemeToggle from "../components/ThemeToggle";
 import ChatWorkspace from "./ChatWorkspace";
+import SettingsPanel from "../components/SettingsPanel";
 import { getCsrfToken, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -15,6 +16,7 @@ type ChatThread = {
 export default function DashboardClient() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [chats, setChats] = useState<ChatThread[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
@@ -319,7 +321,7 @@ export default function DashboardClient() {
               <button
                 onClick={() => {
                   setIsOpen(false);
-                  router.push("/settings");
+                  setIsSettingsOpen(true);
                 }}
                 className="rounded-xl bg-white/70 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10 border border-white/40 dark:border-white/10 px-4 py-2 text-gray-900 dark:text-gray-100"
               >
@@ -335,6 +337,9 @@ export default function DashboardClient() {
           </div>
         </div>
       </aside>
+
+      {/* Settings Panel */}
+      <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       {/* Main content */}
       <div className="h-[calc(100vh-64px)] md:h-[calc(100vh-72px)] px-2 md:px-4 pb-2 md:pb-3">
