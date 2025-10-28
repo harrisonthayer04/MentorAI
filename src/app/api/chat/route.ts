@@ -13,11 +13,37 @@ type AssistantMessageWithToolCalls = { role: "assistant"; content: string | null
 type AssistantMessageWithFunctionCall = { role: "assistant"; content: string | null; function_call: ToolFunctionCall };
 type ToolMessage = { role: "tool"; content: string; tool_call_id: string; name?: string };
 type OpenAIMessage = IncomingMessage | AssistantMessageWithToolCalls | AssistantMessageWithFunctionCall | ToolMessage;
-type ChoiceMessage = Partial<AssistantMessageWithToolCalls & AssistantMessageWithFunctionCall> & { content?: string | null };
+type ChoiceMessage = Partial<AssistantMessageWithToolCalls & AssistantMessageWithFunctionCall> & { content?: unknown };
 type ToolResult = { ok: boolean; error?: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function extractMessageContent(raw: unknown): string {
+  if (typeof raw === "string") {
+    return raw;
+  }
+  if (Array.isArray(raw)) {
+    return raw
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (typeof part !== "object" || part === null) return "";
+        const maybeText = (part as { text?: unknown }).text;
+        if (typeof maybeText === "string") return maybeText;
+        const maybeContent = (part as { content?: unknown }).content;
+        if (typeof maybeContent === "string") return maybeContent;
+        return "";
+      })
+      .join("");
+  }
+  if (typeof raw === "object" && raw !== null) {
+    const maybeText = (raw as { text?: unknown }).text;
+    if (typeof maybeText === "string") return maybeText;
+    const maybeContent = (raw as { content?: unknown }).content;
+    if (typeof maybeContent === "string") return maybeContent;
+  }
+  return "";
 }
 
 function parseResponseContent(rawContent: string): { speech: string; display: string } {
@@ -175,9 +201,10 @@ export async function POST(req: Request) {
         // Append the assistant message that initiated the tool calls so the provider
         // can associate subsequent tool outputs with these call ids.
         if (msg?.tool_calls) {
+          const extractedContent = extractMessageContent(msg?.content);
           convoMessages.push({
             role: "assistant",
-            content: msg?.content ?? null,
+            content: extractedContent || null,
             tool_calls: msg.tool_calls,
           });
         } else if (msg?.function_call) {
@@ -250,7 +277,8 @@ export async function POST(req: Request) {
         continue;
       }
 
-      finalContent = msg?.content ?? "";
+      // Extract content handling various formats (string, array, object)
+      finalContent = extractMessageContent(msg?.content);
       const parsed = parseResponseContent(finalContent);
       finalSpeechContent = parsed.speech;
       finalDisplayContent = parsed.display;
