@@ -82,6 +82,135 @@ const MODEL_SLUGS: Record<string, string> = {
   "z-ai/glm-4.6": "z-ai/glm-4.6",
 };
 
+type MemoryAction = {
+  action: "keep" | "delete" | "merge" | "update";
+  id?: string;
+  mergeIds?: string[];
+  newTitle?: string;
+  newContent?: string;
+};
+
+async function consolidateMemories(
+  userId: string,
+  memories: Array<{ id: string; title: string | null; content: string }>,
+  apiKey: string
+): Promise<void> {
+  if (memories.length < 2) return; // Nothing to consolidate
+
+  const memoryList = memories
+    .map((m, i) => `${i + 1}. [ID: ${m.id}] ${m.title ? `"${m.title}"` : "(no title)"}: ${m.content}`)
+    .join("\n");
+
+  const consolidationPrompt = `You are a memory management assistant. Review the following user memories and identify duplicates, redundancies, or memories that should be merged.
+
+CURRENT MEMORIES:
+${memoryList}
+
+Analyze these memories and respond with a JSON array of actions. Each action should be one of:
+- {"action": "keep", "id": "memory_id"} - Keep this memory as is
+- {"action": "delete", "id": "memory_id"} - Delete duplicate or redundant memory
+- {"action": "merge", "mergeIds": ["id1", "id2"], "newTitle": "...", "newContent": "..."} - Merge multiple memories into one
+- {"action": "update", "id": "memory_id", "newTitle": "...", "newContent": "..."} - Update a memory for clarity
+
+Rules:
+1. Preserve unique information
+2. Merge similar/duplicate memories
+3. Keep memory count under 10 if possible
+4. Be conservative - only consolidate clear duplicates
+5. Respond ONLY with valid JSON array, no explanation
+
+Example response:
+[
+  {"action": "keep", "id": "abc123"},
+  {"action": "delete", "id": "def456"},
+  {"action": "merge", "mergeIds": ["ghi789", "jkl012"], "newTitle": "Python Preferences", "newContent": "Prefers Python 3.10+, uses type hints, prefers async/await"}
+]`;
+
+  try {
+    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
+        "X-Title": "MentorAI",
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-haiku-4.5", // Fast, cheap model for this task
+        messages: [{ role: "user", content: consolidationPrompt }],
+        temperature: 0.1,
+      }),
+    });
+
+    if (!resp.ok) return; // Fail silently, don't break chat flow
+
+    const data = await resp.json();
+    const content = extractMessageContent(data?.choices?.[0]?.message?.content);
+    
+    // Extract JSON from response (might be wrapped in markdown)
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return;
+
+    const actions = JSON.parse(jsonMatch[0]) as MemoryAction[];
+    
+    // Execute actions
+    const memoriesToDelete: string[] = [];
+    const memoriesToCreate: Array<{ title: string | null; content: string }> = [];
+    const memoriesToUpdate: Array<{ id: string; title: string | null; content: string }> = [];
+
+    for (const action of actions) {
+      if (action.action === "delete" && action.id) {
+        memoriesToDelete.push(action.id);
+      } else if (action.action === "merge" && action.mergeIds && action.newContent) {
+        // Delete the merged memories and create a new one
+        memoriesToDelete.push(...action.mergeIds);
+        memoriesToCreate.push({
+          title: action.newTitle || null,
+          content: action.newContent,
+        });
+      } else if (action.action === "update" && action.id && action.newContent) {
+        memoriesToUpdate.push({
+          id: action.id,
+          title: action.newTitle || null,
+          content: action.newContent,
+        });
+      }
+    }
+
+    // Execute database operations
+    if (memoriesToDelete.length > 0) {
+      console.log(`[Memory Consolidation] Deleting ${memoriesToDelete.length} memories`);
+      await prisma.memory.deleteMany({
+        where: { id: { in: memoriesToDelete }, userId },
+      });
+    }
+
+    if (memoriesToUpdate.length > 0) {
+      console.log(`[Memory Consolidation] Updating ${memoriesToUpdate.length} memories`);
+      for (const update of memoriesToUpdate) {
+        await prisma.memory.update({
+          where: { id: update.id },
+          data: { title: update.title, content: update.content },
+        });
+      }
+    }
+
+    if (memoriesToCreate.length > 0) {
+      console.log(`[Memory Consolidation] Creating ${memoriesToCreate.length} memories`);
+      for (const create of memoriesToCreate) {
+        await prisma.memory.create({
+          data: { userId, title: create.title, content: create.content },
+        });
+      }
+    }
+
+    console.log(`[Memory Consolidation] Completed successfully - ${memoriesToDelete.length} deleted, ${memoriesToUpdate.length} updated, ${memoriesToCreate.length} created`);
+  } catch (err) {
+    console.error("[Memory Consolidation] Failed:", err);
+    // Fail silently - don't break the chat flow
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -298,6 +427,22 @@ export async function POST(req: Request) {
           },
         });
         await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
+
+        // Check if we should consolidate memories
+        const messageCount = await prisma.message.count({
+          where: { conversationId },
+        });
+
+        // Run memory consolidation after 5, 15, 25 messages, etc. (every 10 after initial 5)
+        const shouldConsolidate = messageCount === 5 || (messageCount > 5 && (messageCount - 5) % 10 === 0);
+        
+        if (shouldConsolidate && memories.length >= 2) {
+          console.log(`[Memory Consolidation] Triggering for user ${userId} - ${messageCount} messages, ${memories.length} memories`);
+          // Run consolidation asynchronously (don't await - don't block response)
+          consolidateMemories(userId, memories, process.env.OPENROUTER_API_KEY!).catch((err) => {
+            console.error("Background memory consolidation error:", err);
+          });
+        }
       }
     }
 
