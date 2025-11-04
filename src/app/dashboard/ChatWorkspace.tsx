@@ -59,6 +59,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map());
+  const stopTTSRef = useRef<(() => void) | null>(null);
 
   // Stop TTS when threadId changes (user leaves current chat)
   useEffect(() => {
@@ -198,6 +199,12 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
   const startRecording = useCallback(async () => {
     if (isRecording) return;
+    
+    // Stop TTS when user starts recording
+    if (stopTTSRef.current) {
+      stopTTSRef.current();
+    }
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
@@ -491,7 +498,13 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
         {/* Right: Conversation area (3/4) */}
         <div className="md:col-span-9 min-h-0 h-full">
-          <ChatPanel messages={messages} isLoading={isLoading} enableAudio={speakEnabled} playbackRate={playbackRate} />
+          <ChatPanel 
+            messages={messages} 
+            isLoading={isLoading} 
+            enableAudio={speakEnabled} 
+            playbackRate={playbackRate}
+            onStopTTSRef={stopTTSRef}
+          />
         </div>
       </div>
     </div>
@@ -503,11 +516,13 @@ function ChatPanel({
   isLoading,
   enableAudio,
   playbackRate,
+  onStopTTSRef,
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
   enableAudio: boolean;
   playbackRate: number;
+  onStopTTSRef?: React.MutableRefObject<(() => void) | null>;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -518,6 +533,7 @@ function ChatPanel({
   const [playBlocked, setPlayBlocked] = useState<boolean>(false);
   const [showTopBlur, setShowTopBlur] = useState<boolean>(false);
   const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   const convertMathDelimiters = useCallback((input: string) => {
     return input
@@ -545,9 +561,47 @@ function ChatPanel({
       utterance.rate = rate;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
+      utterance.onstart = () => setIsPlaying(true);
+      utterance.onend = () => setIsPlaying(false);
+      utterance.onerror = () => setIsPlaying(false);
       window.speechSynthesis.speak(utterance);
+      setIsPlaying(true);
     } catch {}
   }, []);
+
+  const stopTTS = useCallback(() => {
+    try {
+      // Stop audio element
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
+      // Stop speech synthesis
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      // Clean up URL
+      if (currentUrlRef.current) {
+        URL.revokeObjectURL(currentUrlRef.current);
+        currentUrlRef.current = null;
+      }
+      setIsPlaying(false);
+      lastSpokenRef.current = ""; // Reset so it can play again if needed
+    } catch {}
+  }, []);
+
+  // Expose stopTTS function via ref
+  useEffect(() => {
+    if (onStopTTSRef) {
+      onStopTTSRef.current = stopTTS;
+    }
+    return () => {
+      if (onStopTTSRef) {
+        onStopTTSRef.current = null;
+      }
+    };
+  }, [stopTTS, onStopTTSRef]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -597,12 +651,17 @@ function ChatPanel({
         audio.onended = () => {
           URL.revokeObjectURL(url);
           if (currentUrlRef.current === url) currentUrlRef.current = null;
+          setIsPlaying(false);
         };
+        audio.onplay = () => setIsPlaying(true);
+        audio.onpause = () => setIsPlaying(false);
         try {
           setPlayBlocked(false);
           await audio.play();
+          setIsPlaying(true);
         } catch {
           setPlayBlocked(true);
+          setIsPlaying(false);
         }
         audio.playbackRate = playbackRate;
         lastSpokenRef.current = text;
@@ -614,37 +673,31 @@ function ChatPanel({
     tryPlayTts();
     return () => {
       revoked = true;
+      setIsPlaying(false);
     };
-  }, [latestAssistantText, speakWithWebSpeech, enableAudio]);
+  }, [latestAssistantText, speakWithWebSpeech, enableAudio, playbackRate]);
 
-  // Reset playBlocked if audio is disabled
+  // Reset playBlocked and isPlaying if audio is disabled
   useEffect(() => {
-    if (!enableAudio) setPlayBlocked(false);
-  }, [enableAudio]);
+    if (!enableAudio) {
+      setPlayBlocked(false);
+      setIsPlaying(false);
+      stopTTS();
+    }
+  }, [enableAudio, stopTTS]);
 
 
   // Stop TTS when component unmounts
   useEffect(() => {
     return () => {
-      try { audioRef.current?.pause(); } catch {}
-      if (currentUrlRef.current) URL.revokeObjectURL(currentUrlRef.current);
-      try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch {}
+      stopTTS();
     };
-  }, []);
+  }, [stopTTS]);
 
   return (
     <div className="flex flex-col h-full rounded-2xl bg-white/70 dark:bg-white/10 backdrop-blur border border-white/40 dark:border-white/10 shadow overflow-hidden relative">
       {showTopBlur && (
         <div className="pointer-events-none absolute inset-x-0 top-0 h-4 md:h-6 bg-gradient-to-b from-black/10 to-transparent dark:from-black/20 z-10" />
-      )}
-      {isLoading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-[var(--color-brand)] animate-pulse" />
-            <span className="h-3 w-3 rounded-full bg-[var(--color-brand)] [animation:pulse_1.2s_0.2s_infinite]" />
-            <span className="h-3 w-3 rounded-full bg-[var(--color-brand)] [animation:pulse_1.2s_0.4s_infinite]" />
-          </div>
-        </div>
       )}
       {playBlocked && (
         <div className="absolute inset-0 z-10 flex items-end justify-center pb-6">
@@ -659,6 +712,21 @@ function ChatPanel({
             className="rounded-xl bg-[var(--color-brand)] hover:bg-[color-mix(in_oklab,var(--color-brand),black_8%)] text-white font-display font-semibold px-4 py-2 shadow-lg border border-white/30 dark:border-white/10"
           >
             Play response
+          </button>
+        </div>
+      )}
+      {isPlaying && enableAudio && (
+        <div className="absolute top-4 right-4 z-10">
+          <button
+            onClick={stopTTS}
+            className="rounded-xl bg-red-500 hover:bg-red-600 text-white font-display font-semibold px-4 py-2 shadow-lg border border-white/30 dark:border-white/10 flex items-center gap-2"
+            title="Stop audio playback"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+            Stop
           </button>
         </div>
       )}
