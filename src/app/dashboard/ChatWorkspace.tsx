@@ -514,6 +514,7 @@ function ChatPanel({
   const lastSpokenRef = useRef<string>("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentUrlRef = useRef<string | null>(null);
+  const animatedMessagesRef = useRef<Set<string>>(new Set());
   const [playBlocked, setPlayBlocked] = useState<boolean>(false);
   const [showTopBlur, setShowTopBlur] = useState<boolean>(false);
   const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
@@ -558,6 +559,11 @@ function ChatPanel({
       }
     }
     if (el) setShowTopBlur(el.scrollTop > 0);
+    
+    // Reset animated messages when thread changes (messages array becomes empty)
+    if (messages.length === 0) {
+      animatedMessagesRef.current.clear();
+    }
   }, [messages, isLoading, isAtBottom]);
 
   useEffect(() => {
@@ -667,11 +673,19 @@ function ChatPanel({
           setIsAtBottom(distanceFromBottom < 48);
         }}
       >
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`flex items-start gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-          >
+        {messages.map((m) => {
+          const isNewMessage = !animatedMessagesRef.current.has(m.id);
+          if (isNewMessage) {
+            // Mark as animated (will be added to ref on next render)
+            animatedMessagesRef.current.add(m.id);
+          }
+          
+          return (
+            <div
+              key={m.id}
+              className={`flex items-start gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              style={isNewMessage ? { animation: "fade-in-message 0.3s ease-out" } : undefined}
+            >
             <div
               className={`${
                 m.role === "user"
@@ -733,7 +747,8 @@ function ChatPanel({
             />
             )}
           </div>
-        ))}
+        );
+        })}
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-white/80 dark:bg-gray-900/40 text-gray-900 dark:text-gray-100 border border-white/40 dark:border-white/10 max-w-[80%] rounded-2xl px-4 py-2 shadow">
