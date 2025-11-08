@@ -805,11 +805,23 @@ function ChatPanel({
                   td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
                 }}
               >
-                {convertMathDelimiters(m.content)}
+                {m.role === "assistant" && m.speechContent && !enableAudio ? (
+                  <>
+                    {convertMathDelimiters(m.speechContent)}
+                    {m.content && m.content !== m.speechContent && (
+                      <>
+                        <hr className="my-3 border-black/10 dark:border-white/10" />
+                        {convertMathDelimiters(m.content)}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  convertMathDelimiters(m.content)
+                )}
               </ReactMarkdown>
             </div>
 
-            {m.role === "assistant" && m.content && (
+            {m.role === "assistant" && m.content && enableAudio && (
             <PlayTTS
               text={m.speechContent || m.content}
               className="px-2 py-1 rounded bg-blue-600 text-white text-sm self-start"
