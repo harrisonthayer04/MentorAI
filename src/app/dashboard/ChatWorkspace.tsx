@@ -763,62 +763,148 @@ function ChatPanel({
                   : "bg-white/80 dark:bg-gray-900/40 text-gray-900 dark:text-gray-100 border border-white/40 dark:border-white/10"
               } max-w-[80%] rounded-2xl px-4 py-2 shadow break-words`}
             >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-                components={{
-                  p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
-                  ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
-                  ol: (props) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
-                  li: (props) => <li className="leading-relaxed" {...props} />,
-                  a: (props) => (
-                    <a
-                      className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
-                      rel="noopener noreferrer"
-                      target="_blank"
-                      {...props}
-                    />
-                  ),
-                  strong: (props) => <strong className="font-semibold" {...props} />,
-                  em: (props) => <em className="italic" {...props} />,
-                  code: ({ children, ...props }) => (
-                    <code
-                      className={`${m.role === "user" ? "bg-white/20 text-white" : "bg-black/10 dark:bg-white/10 text-inherit"} rounded px-1 py-0.5 font-mono text-[0.9em]`}
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  ),
-                  pre: (props) => (
-                    <pre className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
-                  ),
-                  blockquote: (props) => (
-                    <blockquote className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`} {...props} />
-                  ),
-                  hr: (props) => <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />,
-                  table: (props) => (
-                    <div className="overflow-x-auto my-2">
-                      <table className="table-auto border-collapse text-sm" {...props} />
-                    </div>
-                  ),
-                  th: (props) => <th className="border px-2 py-1" {...props} />,
-                  td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
-                }}
-              >
-                {m.role === "assistant" && m.speechContent && !enableAudio ? (
-                  <>
+              {m.role === "assistant" && m.speechContent && !enableAudio ? (
+                <>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={{
+                      p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
+                      ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
+                      ol: (props) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
+                      li: (props) => <li className="leading-relaxed" {...props} />,
+                      a: (props) => (
+                        <a
+                          className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                          {...props}
+                        />
+                      ),
+                      strong: (props) => <strong className="font-semibold" {...props} />,
+                      em: (props) => <em className="italic" {...props} />,
+                      code: ({ children, ...props }) => (
+                        <code
+                          className={`${m.role === "user" ? "bg-white/20 text-white" : "bg-black/10 dark:bg-white/10 text-inherit"} rounded px-1 py-0.5 font-mono text-[0.9em]`}
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      ),
+                      pre: (props) => (
+                        <pre className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
+                      ),
+                      blockquote: (props) => (
+                        <blockquote className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`} {...props} />
+                      ),
+                      hr: (props) => <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />,
+                      table: (props) => (
+                        <div className="overflow-x-auto my-2">
+                          <table className="table-auto border-collapse text-sm" {...props} />
+                        </div>
+                      ),
+                      th: (props) => <th className="border px-2 py-1" {...props} />,
+                      td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
+                    }}
+                  >
                     {convertMathDelimiters(m.speechContent)}
-                    {m.content && m.content !== m.speechContent && (
-                      <>
-                        <hr className="my-3 border-black/10 dark:border-white/10" />
+                  </ReactMarkdown>
+                  {m.content && m.content !== m.speechContent && (
+                    <>
+                      <hr className="my-3 border-black/10 dark:border-white/10" />
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={{
+                          p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
+                          ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
+                          ol: (props) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
+                          li: (props) => <li className="leading-relaxed" {...props} />,
+                          a: (props) => (
+                            <a
+                              className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
+                              rel="noopener noreferrer"
+                              target="_blank"
+                              {...props}
+                            />
+                          ),
+                          strong: (props) => <strong className="font-semibold" {...props} />,
+                          em: (props) => <em className="italic" {...props} />,
+                          code: ({ children, ...props }) => (
+                            <code
+                              className={`${m.role === "user" ? "bg-white/20 text-white" : "bg-black/10 dark:bg-white/10 text-inherit"} rounded px-1 py-0.5 font-mono text-[0.9em]`}
+                              {...props}
+                            >
+                              {children}
+                            </code>
+                          ),
+                          pre: (props) => (
+                            <pre className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
+                          ),
+                          blockquote: (props) => (
+                            <blockquote className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`} {...props} />
+                          ),
+                          hr: (props) => <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />,
+                          table: (props) => (
+                            <div className="overflow-x-auto my-2">
+                              <table className="table-auto border-collapse text-sm" {...props} />
+                            </div>
+                          ),
+                          th: (props) => <th className="border px-2 py-1" {...props} />,
+                          td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
+                        }}
+                      >
                         {convertMathDelimiters(m.content)}
-                      </>
-                    )}
-                  </>
-                ) : (
-                  convertMathDelimiters(m.content)
-                )}
-              </ReactMarkdown>
+                      </ReactMarkdown>
+                    </>
+                  )}
+                </>
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={{
+                    p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
+                    ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
+                    ol: (props) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
+                    li: (props) => <li className="leading-relaxed" {...props} />,
+                    a: (props) => (
+                      <a
+                        className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                        {...props}
+                      />
+                    ),
+                    strong: (props) => <strong className="font-semibold" {...props} />,
+                    em: (props) => <em className="italic" {...props} />,
+                    code: ({ children, ...props }) => (
+                      <code
+                        className={`${m.role === "user" ? "bg-white/20 text-white" : "bg-black/10 dark:bg-white/10 text-inherit"} rounded px-1 py-0.5 font-mono text-[0.9em]`}
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    ),
+                    pre: (props) => (
+                      <pre className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
+                    ),
+                    blockquote: (props) => (
+                      <blockquote className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`} {...props} />
+                    ),
+                    hr: (props) => <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />,
+                    table: (props) => (
+                      <div className="overflow-x-auto my-2">
+                        <table className="table-auto border-collapse text-sm" {...props} />
+                      </div>
+                    ),
+                    th: (props) => <th className="border px-2 py-1" {...props} />,
+                    td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
+                  }}
+                >
+                  {convertMathDelimiters(m.content)}
+                </ReactMarkdown>
+              )}
             </div>
 
             {m.role === "assistant" && m.content && enableAudio && (
