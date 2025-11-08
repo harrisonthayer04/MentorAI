@@ -360,7 +360,9 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 <option value="x-ai/grok-code-fast-1">Grok Code Fast 1</option>
                 <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
                 <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5</option>
+                <option value="moonshot/kimi-k2-thinking">Kimi K2 Thinking</option>
                 <option value="qwen/qwen3-235b-a22b-2507">Qwen3 235B A22B 2507</option>
                 <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
                 <option value="deepseek/deepseek-v3.1-terminus">DeepSeek V3.1 Terminus</option>
