@@ -456,77 +456,107 @@ export async function POST(req: Request) {
                   result = { ok: false, error: `Image generation failed: ${errorText}` };
                 } else {
                   const imageData = await imageResp.json();
-                  console.log(`[generate_image] Full API response:`, JSON.stringify(imageData, null, 2));
+                  
+                  // Log the full response for debugging
+                  console.log(`[generate_image] ========== FULL API RESPONSE ==========`);
+                  console.log(JSON.stringify(imageData, null, 2));
+                  console.log(`[generate_image] ========================================`);
                   
                   let imageUrl = "";
                   
-                  // Method 1: Check for images array in message (OpenRouter image generation format)
+                  // Method 1: OpenRouter documented format - message.images[].image_url.url
                   const messageImages = imageData?.choices?.[0]?.message?.images;
                   if (Array.isArray(messageImages) && messageImages.length > 0) {
+                    console.log(`[generate_image] Found images array with ${messageImages.length} items`);
                     const firstImage = messageImages[0];
+                    console.log(`[generate_image] First image structure:`, JSON.stringify(firstImage, null, 2));
+                    
                     if (typeof firstImage === "string") {
                       imageUrl = firstImage;
-                      console.log(`[generate_image] Found URL in message.images array (string): ${imageUrl}`);
-                    } else if (firstImage?.url) {
-                      imageUrl = firstImage.url;
-                      console.log(`[generate_image] Found URL in message.images array (object): ${imageUrl}`);
+                      console.log(`[generate_image] Method 1a: Direct string URL`);
                     } else if (firstImage?.image_url?.url) {
                       imageUrl = firstImage.image_url.url;
-                      console.log(`[generate_image] Found URL in message.images array (image_url object): ${imageUrl}`);
+                      console.log(`[generate_image] Method 1b: image_url.url format`);
+                    } else if (firstImage?.url) {
+                      imageUrl = firstImage.url;
+                      console.log(`[generate_image] Method 1c: Direct url property`);
+                    } else if (typeof firstImage?.b64_json === "string") {
+                      imageUrl = `data:image/png;base64,${firstImage.b64_json}`;
+                      console.log(`[generate_image] Method 1d: b64_json format`);
                     }
                   }
                   
-                  // Method 2: Check for data array at top level (some image APIs)
+                  // Method 2: Top-level data array (DALL-E style)
                   if (!imageUrl && Array.isArray(imageData?.data) && imageData.data.length > 0) {
+                    console.log(`[generate_image] Found top-level data array with ${imageData.data.length} items`);
                     const firstData = imageData.data[0];
+                    console.log(`[generate_image] First data item:`, JSON.stringify(firstData, null, 2));
+                    
                     if (firstData?.url) {
                       imageUrl = firstData.url;
-                      console.log(`[generate_image] Found URL in data array: ${imageUrl}`);
-                    } else if (firstData?.b64_json) {
+                      console.log(`[generate_image] Method 2a: data[].url`);
+                    } else if (typeof firstData?.b64_json === "string") {
                       imageUrl = `data:image/png;base64,${firstData.b64_json}`;
-                      console.log(`[generate_image] Found base64 in data array`);
+                      console.log(`[generate_image] Method 2b: data[].b64_json`);
                     }
                   }
                   
-                  // Method 3: Check message content for URL or structured content
+                  // Method 3: Check message content
                   if (!imageUrl) {
                     const imageContent = imageData?.choices?.[0]?.message?.content;
-                    console.log(`[generate_image] Content type: ${typeof imageContent}`);
-                    console.log(`[generate_image] Content value:`, imageContent);
+                    console.log(`[generate_image] Checking message.content - type: ${typeof imageContent}`);
                     
                     if (typeof imageContent === "string") {
-                      // Try to extract URL from markdown image syntax
-                      const urlMatch = imageContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
-                      if (urlMatch) {
-                        imageUrl = urlMatch[1];
-                        console.log(`[generate_image] Found URL in markdown: ${imageUrl}`);
-                      } else if (imageContent.startsWith("http")) {
+                      console.log(`[generate_image] Content (first 1000 chars): ${imageContent.substring(0, 1000)}`);
+                      
+                      // Check if it's a data URL
+                      if (imageContent.startsWith("data:image")) {
                         imageUrl = imageContent.trim();
-                        console.log(`[generate_image] Found direct URL: ${imageUrl}`);
-                      } else if (imageContent.startsWith("data:image")) {
-                        imageUrl = imageContent;
-                        console.log(`[generate_image] Found base64 data URL`);
-                      } else {
-                        // Try to find any URL in the content
-                        const anyUrlMatch = imageContent.match(/(https?:\/\/[^\s"'<>]+\.(png|jpg|jpeg|gif|webp)[^\s"'<>]*)/i);
-                        if (anyUrlMatch) {
-                          imageUrl = anyUrlMatch[1];
-                          console.log(`[generate_image] Found image URL in content: ${imageUrl}`);
+                        console.log(`[generate_image] Method 3a: Direct data URL in content`);
+                      } 
+                      // Check if it's a direct HTTP URL
+                      else if (imageContent.startsWith("http")) {
+                        imageUrl = imageContent.trim().split(/\s/)[0]; // Take first URL-like string
+                        console.log(`[generate_image] Method 3b: Direct HTTP URL`);
+                      }
+                      // Try to extract from markdown
+                      else {
+                        const markdownMatch = imageContent.match(/!\[.*?\]\(((?:https?:\/\/|data:image)[^\s)]+)\)/);
+                        if (markdownMatch) {
+                          imageUrl = markdownMatch[1];
+                          console.log(`[generate_image] Method 3c: Extracted from markdown`);
                         } else {
-                          console.log(`[generate_image] Content is string but not a recognized format: ${imageContent.substring(0, 500)}`);
+                          // Try to find any image URL
+                          const urlMatch = imageContent.match(/(https?:\/\/[^\s"'<>]+)/i);
+                          if (urlMatch) {
+                            imageUrl = urlMatch[1];
+                            console.log(`[generate_image] Method 3d: Found URL in text`);
+                          }
                         }
                       }
                     } else if (Array.isArray(imageContent)) {
-                      console.log(`[generate_image] Content is array with ${imageContent.length} items`);
-                      for (const part of imageContent) {
-                        console.log(`[generate_image] Array part:`, JSON.stringify(part));
+                      console.log(`[generate_image] Content is array with ${imageContent.length} parts`);
+                      for (let i = 0; i < imageContent.length; i++) {
+                        const part = imageContent[i];
+                        console.log(`[generate_image] Part ${i}:`, JSON.stringify(part, null, 2));
+                        
+                        // Various multimodal content formats
                         if (part?.type === "image_url" && part?.image_url?.url) {
                           imageUrl = part.image_url.url;
-                          console.log(`[generate_image] Found URL in content array: ${imageUrl}`);
+                          console.log(`[generate_image] Method 3e: content[].image_url.url`);
                           break;
                         } else if (part?.type === "image" && part?.url) {
                           imageUrl = part.url;
-                          console.log(`[generate_image] Found URL in image part: ${imageUrl}`);
+                          console.log(`[generate_image] Method 3f: content[].url`);
+                          break;
+                        } else if (part?.type === "image" && part?.source?.data) {
+                          const mediaType = part?.source?.media_type || "image/png";
+                          imageUrl = `data:${mediaType};base64,${part.source.data}`;
+                          console.log(`[generate_image] Method 3g: content[].source.data (Anthropic format)`);
+                          break;
+                        } else if (typeof part?.image_url === "string") {
+                          imageUrl = part.image_url;
+                          console.log(`[generate_image] Method 3h: content[].image_url as string`);
                           break;
                         }
                       }
@@ -534,10 +564,18 @@ export async function POST(req: Request) {
                   }
 
                   if (imageUrl) {
-                    console.log(`[generate_image] Success! Image URL: ${imageUrl.substring(0, 100)}...`);
+                    const urlPreview = imageUrl.length > 100 ? `${imageUrl.substring(0, 100)}...` : imageUrl;
+                    console.log(`[generate_image] SUCCESS! Image URL: ${urlPreview}`);
                     result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
                   } else {
-                    console.error(`[generate_image] No image URL found in response`);
+                    console.error(`[generate_image] FAILED: No image URL found in response`);
+                    console.error(`[generate_image] Response keys: ${Object.keys(imageData || {}).join(", ")}`);
+                    if (imageData?.choices?.[0]) {
+                      console.error(`[generate_image] Choice keys: ${Object.keys(imageData.choices[0]).join(", ")}`);
+                      if (imageData.choices[0].message) {
+                        console.error(`[generate_image] Message keys: ${Object.keys(imageData.choices[0].message).join(", ")}`);
+                      }
+                    }
                     result = { ok: false, error: "No image URL in response. Check server logs for full API response." };
                   }
                 }
