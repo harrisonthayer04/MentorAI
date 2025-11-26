@@ -85,6 +85,13 @@ const MODEL_SLUGS: Record<string, string> = {
   "z-ai/glm-4.6": "z-ai/glm-4.6",
 };
 
+const IMAGE_MODEL_SLUGS: Record<string, string> = {
+  "google/gemini-3-pro-image-preview": "google/gemini-3-pro-image-preview",
+  "google/gemini-2.5-flash-image": "google/gemini-2.5-flash-image",
+  "openai/gpt-5-image": "openai/gpt-5-image",
+  "black-forest-labs/flux.2-pro": "black-forest-labs/flux.2-pro",
+};
+
 type MemoryAction = {
   action: "keep" | "delete" | "merge" | "update";
   id?: string;
@@ -139,7 +146,7 @@ Example response:
         "X-Title": "MentorAI",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-haiku-4.5", // Fast, cheap model for this task
+        model: "anthropic/claude-opus-4.5", 
         messages: [{ role: "user", content: consolidationPrompt }],
         temperature: 0.1,
       }),
@@ -220,8 +227,9 @@ export async function POST(req: Request) {
     const userId = (session?.user as { id?: string } | undefined)?.id;
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { modelId, messages, conversationId } = (await req.json()) as {
+    const { modelId, imageModelId, messages, conversationId } = (await req.json()) as {
       modelId?: string;
+      imageModelId?: string;
       messages?: IncomingMessage[];
       conversationId?: string;
     };
@@ -253,6 +261,9 @@ export async function POST(req: Request) {
       memories,
     });
 
+    // Resolve image model slug
+    const imageModel = imageModelId ? (IMAGE_MODEL_SLUGS[imageModelId] ?? imageModelId) : "google/gemini-2.5-flash-image";
+
     // Define tools for the model to call
     const tools = [
       {
@@ -283,6 +294,24 @@ export async function POST(req: Request) {
               title: { type: "string", description: "Short new title" },
             },
             required: ["title"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "generate_image",
+          description:
+            "Generate an image based on a text prompt. Use this when the user asks you to create, draw, generate, or make an image, picture, illustration, artwork, or visual content.",
+          parameters: {
+            type: "object",
+            properties: {
+              prompt: {
+                type: "string",
+                description: "A detailed description of the image to generate. Be specific about style, composition, colors, and subjects.",
+              },
+            },
+            required: ["prompt"],
           },
         },
       },
@@ -389,6 +418,68 @@ export async function POST(req: Request) {
                     data: { title },
                   });
                   result = { ok: true };
+                }
+              }
+            } else if (name === "generate_image") {
+              const prompt = typeof obj.prompt === "string" ? obj.prompt.trim() : "";
+              if (!prompt) {
+                result = { ok: false, error: "prompt required" };
+              } else {
+                // Call OpenRouter image generation API
+                const imageResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
+                    "X-Title": "MentorAI",
+                  },
+                  body: JSON.stringify({
+                    model: imageModel,
+                    messages: [
+                      {
+                        role: "user",
+                        content: prompt,
+                      },
+                    ],
+                  }),
+                });
+
+                if (!imageResp.ok) {
+                  const errorText = await imageResp.text();
+                  result = { ok: false, error: `Image generation failed: ${errorText}` };
+                } else {
+                  const imageData = await imageResp.json();
+                  const imageContent = imageData?.choices?.[0]?.message?.content;
+                  
+                  // Check if response contains image URL or base64 data
+                  let imageUrl = "";
+                  if (typeof imageContent === "string") {
+                    // Try to extract URL from markdown image syntax
+                    const urlMatch = imageContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+                    if (urlMatch) {
+                      imageUrl = urlMatch[1];
+                    } else if (imageContent.startsWith("http")) {
+                      imageUrl = imageContent.trim();
+                    } else {
+                      // Could be base64 or other format
+                      imageUrl = imageContent;
+                    }
+                  } else if (Array.isArray(imageContent)) {
+                    // Handle array format (some models return structured content)
+                    for (const part of imageContent) {
+                      if (part?.type === "image_url" && part?.image_url?.url) {
+                        imageUrl = part.image_url.url;
+                        break;
+                      }
+                    }
+                  }
+
+                  if (imageUrl) {
+                    result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
+                  } else {
+                    result = { ok: false, error: "No image URL in response" };
+                  }
                 }
               }
             }

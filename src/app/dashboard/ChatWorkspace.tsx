@@ -44,6 +44,7 @@ function parseTranscriptionResponse(payload: unknown): { text: string | null; er
 
 export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
   const [modelId, setModelId] = useState<string>("gemini-2.5-flash-lite");
+  const [imageModelId, setImageModelId] = useState<string>("google/gemini-2.5-flash-image");
   const [inputValue, setInputValue] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -124,6 +125,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           modelId,
+          imageModelId,
           messages: [
             ...messages.map(({ role, content }) => ({ role, content })),
             { role: "user", content: text },
@@ -349,7 +351,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
           <div className="h-full rounded-2xl bg-white/70 dark:bg-white/10 backdrop-blur border border-white/40 dark:border-white/10 shadow flex flex-col">
             {/* Model selector */}
             <div className="p-4 border-b border-white/40 dark:border-white/10">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Model</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chat Model</label>
               <select
                 value={modelId}
                 onChange={(e) => setModelId(e.target.value)}
@@ -368,6 +370,18 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
                 <option value="deepseek/deepseek-v3.1-terminus">DeepSeek V3.1 Terminus</option>
                 <option value="z-ai/glm-4.6">GLM 4.6</option>
+              </select>
+
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 mt-4">Image Model</label>
+              <select
+                value={imageModelId}
+                onChange={(e) => setImageModelId(e.target.value)}
+                className="w-full rounded-xl bg-white/70 dark:bg-gray-900/40 border border-white/40 dark:border-white/10 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/40"
+              >
+                <option value="google/gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
+                <option value="google/gemini-3-pro-image-preview">Gemini 3 Pro Image Preview</option>
+                <option value="openai/gpt-5-image">GPT-5 Image</option>
+                <option value="black-forest-labs/flux.2-pro">FLUX.2 Pro</option>
               </select>
             </div>
 
