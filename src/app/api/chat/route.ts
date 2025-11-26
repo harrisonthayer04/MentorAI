@@ -425,6 +425,9 @@ export async function POST(req: Request) {
               if (!prompt) {
                 result = { ok: false, error: "prompt required" };
               } else {
+                console.log(`[generate_image] Starting image generation with model: ${imageModel}`);
+                console.log(`[generate_image] Prompt: ${prompt.substring(0, 100)}...`);
+                
                 // Call OpenRouter image generation API
                 const imageResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                   method: "POST",
@@ -445,12 +448,19 @@ export async function POST(req: Request) {
                   }),
                 });
 
+                console.log(`[generate_image] Response status: ${imageResp.status}`);
+
                 if (!imageResp.ok) {
                   const errorText = await imageResp.text();
+                  console.error(`[generate_image] API error: ${errorText}`);
                   result = { ok: false, error: `Image generation failed: ${errorText}` };
                 } else {
                   const imageData = await imageResp.json();
+                  console.log(`[generate_image] Full API response:`, JSON.stringify(imageData, null, 2));
+                  
                   const imageContent = imageData?.choices?.[0]?.message?.content;
+                  console.log(`[generate_image] Content type: ${typeof imageContent}`);
+                  console.log(`[generate_image] Content value:`, imageContent);
                   
                   // Check if response contains image URL or base64 data
                   let imageUrl = "";
@@ -459,25 +469,39 @@ export async function POST(req: Request) {
                     const urlMatch = imageContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
                     if (urlMatch) {
                       imageUrl = urlMatch[1];
+                      console.log(`[generate_image] Found URL in markdown: ${imageUrl}`);
                     } else if (imageContent.startsWith("http")) {
                       imageUrl = imageContent.trim();
+                      console.log(`[generate_image] Found direct URL: ${imageUrl}`);
                     } else {
-                      // Could be base64 or other format
-                      imageUrl = imageContent;
+                      // Could be base64 or other format - check for data URL
+                      if (imageContent.startsWith("data:image")) {
+                        imageUrl = imageContent;
+                        console.log(`[generate_image] Found base64 data URL`);
+                      } else {
+                        console.log(`[generate_image] Content is string but not a recognized format: ${imageContent.substring(0, 200)}`);
+                      }
                     }
                   } else if (Array.isArray(imageContent)) {
+                    console.log(`[generate_image] Content is array with ${imageContent.length} items`);
                     // Handle array format (some models return structured content)
                     for (const part of imageContent) {
+                      console.log(`[generate_image] Array part:`, JSON.stringify(part));
                       if (part?.type === "image_url" && part?.image_url?.url) {
                         imageUrl = part.image_url.url;
+                        console.log(`[generate_image] Found URL in array: ${imageUrl}`);
                         break;
                       }
                     }
+                  } else {
+                    console.log(`[generate_image] Unexpected content type: ${typeof imageContent}`);
                   }
 
                   if (imageUrl) {
+                    console.log(`[generate_image] Success! Image URL: ${imageUrl.substring(0, 100)}...`);
                     result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
                   } else {
+                    console.error(`[generate_image] No image URL found in response`);
                     result = { ok: false, error: "No image URL in response" };
                   }
                 }
