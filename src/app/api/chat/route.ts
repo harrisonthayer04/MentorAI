@@ -458,43 +458,79 @@ export async function POST(req: Request) {
                   const imageData = await imageResp.json();
                   console.log(`[generate_image] Full API response:`, JSON.stringify(imageData, null, 2));
                   
-                  const imageContent = imageData?.choices?.[0]?.message?.content;
-                  console.log(`[generate_image] Content type: ${typeof imageContent}`);
-                  console.log(`[generate_image] Content value:`, imageContent);
-                  
-                  // Check if response contains image URL or base64 data
                   let imageUrl = "";
-                  if (typeof imageContent === "string") {
-                    // Try to extract URL from markdown image syntax
-                    const urlMatch = imageContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
-                    if (urlMatch) {
-                      imageUrl = urlMatch[1];
-                      console.log(`[generate_image] Found URL in markdown: ${imageUrl}`);
-                    } else if (imageContent.startsWith("http")) {
-                      imageUrl = imageContent.trim();
-                      console.log(`[generate_image] Found direct URL: ${imageUrl}`);
-                    } else {
-                      // Could be base64 or other format - check for data URL
-                      if (imageContent.startsWith("data:image")) {
+                  
+                  // Method 1: Check for images array in message (OpenRouter image generation format)
+                  const messageImages = imageData?.choices?.[0]?.message?.images;
+                  if (Array.isArray(messageImages) && messageImages.length > 0) {
+                    const firstImage = messageImages[0];
+                    if (typeof firstImage === "string") {
+                      imageUrl = firstImage;
+                      console.log(`[generate_image] Found URL in message.images array (string): ${imageUrl}`);
+                    } else if (firstImage?.url) {
+                      imageUrl = firstImage.url;
+                      console.log(`[generate_image] Found URL in message.images array (object): ${imageUrl}`);
+                    } else if (firstImage?.image_url?.url) {
+                      imageUrl = firstImage.image_url.url;
+                      console.log(`[generate_image] Found URL in message.images array (image_url object): ${imageUrl}`);
+                    }
+                  }
+                  
+                  // Method 2: Check for data array at top level (some image APIs)
+                  if (!imageUrl && Array.isArray(imageData?.data) && imageData.data.length > 0) {
+                    const firstData = imageData.data[0];
+                    if (firstData?.url) {
+                      imageUrl = firstData.url;
+                      console.log(`[generate_image] Found URL in data array: ${imageUrl}`);
+                    } else if (firstData?.b64_json) {
+                      imageUrl = `data:image/png;base64,${firstData.b64_json}`;
+                      console.log(`[generate_image] Found base64 in data array`);
+                    }
+                  }
+                  
+                  // Method 3: Check message content for URL or structured content
+                  if (!imageUrl) {
+                    const imageContent = imageData?.choices?.[0]?.message?.content;
+                    console.log(`[generate_image] Content type: ${typeof imageContent}`);
+                    console.log(`[generate_image] Content value:`, imageContent);
+                    
+                    if (typeof imageContent === "string") {
+                      // Try to extract URL from markdown image syntax
+                      const urlMatch = imageContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+                      if (urlMatch) {
+                        imageUrl = urlMatch[1];
+                        console.log(`[generate_image] Found URL in markdown: ${imageUrl}`);
+                      } else if (imageContent.startsWith("http")) {
+                        imageUrl = imageContent.trim();
+                        console.log(`[generate_image] Found direct URL: ${imageUrl}`);
+                      } else if (imageContent.startsWith("data:image")) {
                         imageUrl = imageContent;
                         console.log(`[generate_image] Found base64 data URL`);
                       } else {
-                        console.log(`[generate_image] Content is string but not a recognized format: ${imageContent.substring(0, 200)}`);
+                        // Try to find any URL in the content
+                        const anyUrlMatch = imageContent.match(/(https?:\/\/[^\s"'<>]+\.(png|jpg|jpeg|gif|webp)[^\s"'<>]*)/i);
+                        if (anyUrlMatch) {
+                          imageUrl = anyUrlMatch[1];
+                          console.log(`[generate_image] Found image URL in content: ${imageUrl}`);
+                        } else {
+                          console.log(`[generate_image] Content is string but not a recognized format: ${imageContent.substring(0, 500)}`);
+                        }
+                      }
+                    } else if (Array.isArray(imageContent)) {
+                      console.log(`[generate_image] Content is array with ${imageContent.length} items`);
+                      for (const part of imageContent) {
+                        console.log(`[generate_image] Array part:`, JSON.stringify(part));
+                        if (part?.type === "image_url" && part?.image_url?.url) {
+                          imageUrl = part.image_url.url;
+                          console.log(`[generate_image] Found URL in content array: ${imageUrl}`);
+                          break;
+                        } else if (part?.type === "image" && part?.url) {
+                          imageUrl = part.url;
+                          console.log(`[generate_image] Found URL in image part: ${imageUrl}`);
+                          break;
+                        }
                       }
                     }
-                  } else if (Array.isArray(imageContent)) {
-                    console.log(`[generate_image] Content is array with ${imageContent.length} items`);
-                    // Handle array format (some models return structured content)
-                    for (const part of imageContent) {
-                      console.log(`[generate_image] Array part:`, JSON.stringify(part));
-                      if (part?.type === "image_url" && part?.image_url?.url) {
-                        imageUrl = part.image_url.url;
-                        console.log(`[generate_image] Found URL in array: ${imageUrl}`);
-                        break;
-                      }
-                    }
-                  } else {
-                    console.log(`[generate_image] Unexpected content type: ${typeof imageContent}`);
                   }
 
                   if (imageUrl) {
@@ -502,7 +538,7 @@ export async function POST(req: Request) {
                     result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
                   } else {
                     console.error(`[generate_image] No image URL found in response`);
-                    result = { ok: false, error: "No image URL in response" };
+                    result = { ok: false, error: "No image URL in response. Check server logs for full API response." };
                   }
                 }
               }
