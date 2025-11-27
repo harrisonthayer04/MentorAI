@@ -946,6 +946,7 @@ function ChatPanel({
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
+                    urlTransform={(value) => value}
                     components={{
                       p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
                       ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
@@ -1002,6 +1003,7 @@ function ChatPanel({
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[rehypeKatex]}
+                        urlTransform={(value) => value}
                         components={{
                           p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
                           ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
@@ -1059,6 +1061,7 @@ function ChatPanel({
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
                   rehypePlugins={[rehypeKatex]}
+                  urlTransform={(value) => value}
                   components={{
                     p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
                     ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
