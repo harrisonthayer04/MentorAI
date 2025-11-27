@@ -89,6 +89,35 @@ html:not(.dark) {
   100% { background-position: 200% 0; }
 }
 
+@keyframes slide-in-right {
+  0% { 
+    opacity: 0; 
+    transform: translateX(100%); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes slide-down-expand {
+  0% { 
+    opacity: 0; 
+    transform: translateY(-8px) scaleY(0.95);
+    transform-origin: top;
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0) scaleY(1);
+    transform-origin: top;
+  }
+}
+
+@keyframes overlay-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 /* Gradient text utility */
 .gradient-text {
   background: linear-gradient(135deg, var(--color-brand) 0%, var(--color-accent) 100%);

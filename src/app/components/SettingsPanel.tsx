@@ -205,13 +205,13 @@ export default function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; on
       <div
         onClick={onClose}
         className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-        style={{ animation: "fade-in 0.15s ease-out" }}
+        style={{ animation: "overlay-fade-in 0.2s ease-out" }}
       />
 
       {/* Panel */}
       <div
         className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-2xl overflow-y-auto"
-        style={{ animation: "fade-in 0.2s ease-out" }}
+        style={{ animation: "slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1)" }}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 bg-[var(--color-surface)]/95 backdrop-blur-sm border-b border-[var(--color-border)] px-6 py-4 flex items-center justify-between">

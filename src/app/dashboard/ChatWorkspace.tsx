@@ -541,7 +541,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
           {/* Collapsible settings panel */}
           {showSettings && (
-            <div className="mb-4 p-4 rounded-xl bg-[var(--color-surface-elevated)]/60 border border-[var(--color-border)] space-y-4" style={{ animation: "fade-in 0.2s ease-out" }}>
+            <div className="mb-4 p-4 rounded-xl bg-[var(--color-surface-elevated)]/60 border border-[var(--color-border)] space-y-4 overflow-hidden" style={{ animation: "slide-down-expand 0.25s cubic-bezier(0.16, 1, 0.3, 1)" }}>
               {/* Model selectors */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
