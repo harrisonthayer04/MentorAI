@@ -492,13 +492,13 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       </div>
 
       {/* Input Area */}
-      <div className="flex-shrink-0 border-t border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
+      <div className="flex-shrink-0 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto p-4">
           {/* Settings toggle row */}
           <div className="flex items-center justify-between mb-3">
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
@@ -522,9 +522,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               {/* Audio toggle */}
               <button
                 onClick={() => setSpeakEnabled(!speakEnabled)}
-                className={`flex items-center gap-1.5 text-xs transition-colors ${
-                  speakEnabled ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-300"
-                }`}
+                className="flex items-center gap-1.5 text-xs transition-colors"
+                style={{ color: speakEnabled ? 'var(--color-brand)' : 'var(--color-text-muted)' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -542,15 +541,15 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
           {/* Collapsible settings panel */}
           {showSettings && (
-            <div className="mb-4 p-4 rounded-xl bg-zinc-900/60 border border-zinc-800 space-y-4" style={{ animation: "fade-in 0.2s ease-out" }}>
+            <div className="mb-4 p-4 rounded-xl bg-[var(--color-surface-elevated)]/60 border border-[var(--color-border)] space-y-4" style={{ animation: "fade-in 0.2s ease-out" }}>
               {/* Model selectors */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Chat Model</label>
+                  <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">Chat Model</label>
                   <select
                     value={modelId}
                     onChange={(e) => setModelId(e.target.value)}
-                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    className="w-full rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/50"
                   >
                     <option value="minimax/minimax-m2:free">MiniMax M2 Free</option>
                     <option value="x-ai/grok-4-fast">Grok 4 Fast</option>
@@ -568,11 +567,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Image Model</label>
+                  <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">Image Model</label>
                   <select
                     value={imageModelId}
                     onChange={(e) => setImageModelId(e.target.value)}
-                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    className="w-full rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/50"
                   >
                     <option value="google/gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
                     <option value="google/gemini-3-pro-image-preview">Gemini 3 Pro Image Preview</option>
@@ -583,11 +582,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               </div>
 
               {/* Audio settings */}
-              <div className="pt-3 border-t border-zinc-800">
+              <div className="pt-3 border-t border-[var(--color-border)]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-medium text-zinc-300">Playback speed</div>
-                    <div className="text-xs text-zinc-500">{playbackRate.toFixed(2)}x</div>
+                    <div className="text-sm font-medium text-[var(--color-text-secondary)]">Playback speed</div>
+                    <div className="text-xs text-[var(--color-text-muted)]">{playbackRate.toFixed(2)}x</div>
                   </div>
                   <input
                     type="range"
@@ -596,26 +595,26 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                     step="0.05"
                     value={playbackRate}
                     onChange={(e) => setPlaybackRate(clampPlaybackRate(parseFloat(e.target.value)))}
-                    className="w-32 accent-indigo-500"
+                    className="w-32"
+                    style={{ accentColor: 'var(--color-brand)' }}
                     disabled={!speakEnabled}
                   />
                 </div>
               </div>
 
               {/* Voice input settings */}
-              <div className="pt-3 border-t border-zinc-800">
+              <div className="pt-3 border-t border-[var(--color-border)]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-medium text-zinc-300">Auto-send voice input</div>
-                    <div className="text-xs text-zinc-500">Send immediately after transcription</div>
+                    <div className="text-sm font-medium text-[var(--color-text-secondary)]">Auto-send voice input</div>
+                    <div className="text-xs text-[var(--color-text-muted)]">Send immediately after transcription</div>
                   </div>
                   <button
                     role="switch"
                     aria-checked={autoSendTranscription}
                     onClick={() => setAutoSendTranscription(!autoSendTranscription)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      autoSendTranscription ? "bg-indigo-500" : "bg-zinc-700"
-                    }`}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                    style={{ backgroundColor: autoSendTranscription ? 'var(--color-brand)' : 'var(--color-surface-hover)' }}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -628,11 +627,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
               {/* Debug section */}
               {debugMode && (
-                <div className="pt-3 border-t border-zinc-800">
+                <div className="pt-3 border-t border-[var(--color-border)]">
                   <button
                     onClick={handleDownloadLogs}
                     disabled={!threadId || currentLogCount === 0}
-                    className="w-full rounded-lg border border-dashed border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-400 disabled:opacity-50 hover:bg-zinc-800/50 transition-colors"
+                    className="w-full rounded-lg border border-dashed border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] disabled:opacity-50 hover:bg-[var(--color-surface-hover)]/50 transition-colors"
                   >
                     Download logs ({currentLogCount} entries)
                   </button>
@@ -649,7 +648,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder={threadId ? "Send a message..." : "Select a conversation to start"}
-              className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 pr-24 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-transparent resize-none"
+              className="w-full rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-4 py-3 pr-24 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/50 focus:border-transparent resize-none"
               disabled={!threadId}
               style={{ minHeight: "48px", maxHeight: "200px" }}
               onInput={(e) => {
@@ -674,7 +673,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 className={`p-2 rounded-lg transition-colors ${
                   isRecording 
                     ? "bg-red-500 text-white animate-pulse" 
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                 title={isRecording ? "Recording..." : "Hold to talk"}
               >
@@ -690,7 +689,10 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               <button
                 type="submit"
                 disabled={!threadId || !inputValue.trim() || isLoading}
-                className="p-2 rounded-lg bg-indigo-500 text-white hover:bg-indigo-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-500"
+                className="p-2 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: 'var(--color-brand)' }}
+                onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
               >
                 {isLoading ? (
                   <svg width="18" height="18" viewBox="0 0 24 24" className="animate-spin">
@@ -706,7 +708,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
             </div>
           </form>
 
-          <p className="mt-2 text-xs text-center text-zinc-600">
+          <p className="mt-2 text-xs text-center text-[var(--color-text-muted)]">
             Press Enter to send, Shift+Enter for new line
           </p>
         </div>
@@ -891,13 +893,13 @@ function ChatPanel({
   if (messages.length === 0 && !isLoading) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 flex items-center justify-center mb-6">
-          <svg className="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6" style={{ backgroundColor: 'color-mix(in srgb, var(--color-brand) 20%, transparent)' }}>
+          <svg className="w-8 h-8" style={{ color: 'var(--color-brand)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
         </div>
-        <h2 className="text-xl font-display font-semibold text-zinc-200 mb-2">Start a conversation</h2>
-        <p className="text-sm text-zinc-500 max-w-md">Ask me anything — math, science, coding, writing, or any topic you want to explore.</p>
+        <h2 className="text-xl font-display font-semibold text-[var(--color-text)] mb-2">Start a conversation</h2>
+        <p className="text-sm text-[var(--color-text-muted)] max-w-md">Ask me anything — math, science, coding, writing, or any topic you want to explore.</p>
       </div>
     );
   }
@@ -915,7 +917,8 @@ function ChatPanel({
                 .then(() => setPlayBlocked(false))
                 .catch(() => {});
             }}
-            className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold shadow-lg transition-colors"
+            className="px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-lg transition-colors"
+            style={{ backgroundColor: 'var(--color-brand)' }}
           >
             Play response
           </button>
@@ -927,7 +930,7 @@ function ChatPanel({
         <div className="absolute top-4 right-4 z-10">
           <button
             onClick={stopTTS}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] text-sm hover:bg-[var(--color-surface-hover)] transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <rect x="6" y="4" width="4" height="16" rx="1" />
@@ -964,7 +967,7 @@ function ChatPanel({
               >
                 {/* Avatar for assistant */}
                 {m.role === "assistant" && (
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--color-brand)' }}>
                     <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                     </svg>
@@ -975,9 +978,10 @@ function ChatPanel({
                 <div
                   className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-4 py-3 ${
                     m.role === "user"
-                      ? "bg-indigo-500 text-white"
-                      : "bg-zinc-800/80 text-zinc-100 border border-zinc-700/50"
+                      ? "text-white"
+                      : "bg-[var(--color-surface-elevated)]/80 text-[var(--color-text)] border border-[var(--color-border)]/50"
                   }`}
+                  style={m.role === "user" ? { backgroundColor: 'var(--color-brand)' } : undefined}
                 >
                   {m.role === "assistant" && m.speechContent && !enableAudio ? (
                     <>
@@ -993,7 +997,7 @@ function ChatPanel({
                       </div>
                       {m.content && m.content !== m.speechContent && (
                         <>
-                          <hr className="my-3 border-zinc-700" />
+                          <hr className="my-3 border-[var(--color-border)]" />
                           <div className="prose prose-invert prose-sm max-w-none">
                             <ReactMarkdown
                               remarkPlugins={[remarkGfm, remarkMath]}
@@ -1025,15 +1029,15 @@ function ChatPanel({
                 {m.role === "assistant" && m.content && enableAudio && (
                   <PlayTTS
                     text={m.speechContent || m.content}
-                    className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors self-start"
+                    className="flex-shrink-0 p-2 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors self-start"
                     playbackRate={playbackRate}
                   />
                 )}
 
                 {/* Avatar for user */}
                 {m.role === "user" && (
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[var(--color-surface-hover)] flex items-center justify-center">
+                    <svg className="w-4 h-4 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </div>
@@ -1045,16 +1049,16 @@ function ChatPanel({
           {/* Loading indicator */}
           {isLoading && (
             <div className="flex gap-3 justify-start">
-              <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center">
+              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--color-brand)' }}>
                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               </div>
-              <div className="bg-zinc-800/80 border border-zinc-700/50 rounded-2xl px-4 py-3">
+              <div className="bg-[var(--color-surface-elevated)]/80 border border-[var(--color-border)]/50 rounded-2xl px-4 py-3">
                 <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-text-muted)] animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-text-muted)] animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-text-muted)] animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
             </div>
@@ -1077,7 +1081,8 @@ function markdownComponents(role: "user" | "assistant") {
     li: (props: React.HTMLAttributes<HTMLLIElement>) => <li className="leading-relaxed" {...props} />,
     a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
       <a
-        className={isUser ? "text-white underline" : "text-indigo-400 hover:text-indigo-300 underline"}
+        className={isUser ? "text-white underline" : "underline"}
+        style={!isUser ? { color: 'var(--color-brand)' } : undefined}
         rel="noopener noreferrer"
         target="_blank"
         {...props}
@@ -1089,7 +1094,7 @@ function markdownComponents(role: "user" | "assistant") {
       <img
         src={src}
         alt={alt || "Generated image"}
-        className="max-w-full h-auto rounded-lg my-2 border border-zinc-700"
+        className="max-w-full h-auto rounded-lg my-2 border border-[var(--color-border)]"
         loading="lazy"
         {...props}
       />
@@ -1098,25 +1103,25 @@ function markdownComponents(role: "user" | "assistant") {
     em: (props: React.HTMLAttributes<HTMLElement>) => <em className="italic" {...props} />,
     code: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => (
       <code
-        className={`${isUser ? "bg-white/20" : "bg-zinc-900"} rounded px-1.5 py-0.5 font-mono text-[0.9em]`}
+        className={`${isUser ? "bg-white/20" : "bg-[var(--color-surface)]"} rounded px-1.5 py-0.5 font-mono text-[0.9em]`}
         {...props}
       >
         {children}
       </code>
     ),
     pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
-      <pre className={`${isUser ? "bg-white/15" : "bg-zinc-900"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
+      <pre className={`${isUser ? "bg-white/15" : "bg-[var(--color-surface)]"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
     ),
     blockquote: (props: React.HTMLAttributes<HTMLQuoteElement>) => (
-      <blockquote className={`${isUser ? "border-white/40" : "border-zinc-600"} border-l-2 pl-3 my-2 italic`} {...props} />
+      <blockquote className={`${isUser ? "border-white/40" : "border-[var(--color-border)]"} border-l-2 pl-3 my-2 italic`} {...props} />
     ),
-    hr: (props: React.HTMLAttributes<HTMLHRElement>) => <hr className="border-zinc-700 my-3" {...props} />,
+    hr: (props: React.HTMLAttributes<HTMLHRElement>) => <hr className="border-[var(--color-border)] my-3" {...props} />,
     table: (props: React.HTMLAttributes<HTMLTableElement>) => (
       <div className="overflow-x-auto my-2">
         <table className="table-auto border-collapse text-sm" {...props} />
       </div>
     ),
-    th: (props: React.HTMLAttributes<HTMLTableCellElement>) => <th className="border border-zinc-700 px-2 py-1" {...props} />,
-    td: (props: React.HTMLAttributes<HTMLTableCellElement>) => <td className="border border-zinc-700 px-2 py-1 align-top" {...props} />,
+    th: (props: React.HTMLAttributes<HTMLTableCellElement>) => <th className="border border-[var(--color-border)] px-2 py-1" {...props} />,
+    td: (props: React.HTMLAttributes<HTMLTableCellElement>) => <td className="border border-[var(--color-border)] px-2 py-1 align-top" {...props} />,
   };
 }

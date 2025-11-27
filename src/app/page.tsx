@@ -3,18 +3,18 @@ import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 overflow-hidden">
+    <div className="min-h-screen bg-[var(--color-surface)] dark:bg-zinc-950 text-[var(--color-text)] overflow-hidden">
       {/* Subtle gradient orbs for depth */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[100px]" />
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] opacity-30 dark:opacity-10" style={{ backgroundColor: 'var(--color-brand)' }} />
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-cyan-500/30 dark:bg-cyan-500/10 rounded-full blur-[100px]" />
       </div>
 
       {/* Navigation */}
       <nav className="relative z-10 px-6 py-4" style={{ animation: "fade-in 0.4s ease-out" }}>
         <div className="mx-auto max-w-6xl flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--color-brand)' }}>
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
@@ -25,7 +25,8 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <Link
               href="/signin"
-              className="px-5 py-2.5 rounded-xl font-display font-semibold text-sm bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition-all hover:shadow-indigo-500/30 hover:-translate-y-0.5"
+              className="px-5 py-2.5 rounded-xl font-display font-semibold text-sm text-white shadow-lg transition-all hover:-translate-y-0.5"
+              style={{ backgroundColor: 'var(--color-brand)' }}
             >
               Get Started
             </Link>
@@ -39,7 +40,7 @@ export default function Home() {
         <div className="mx-auto max-w-6xl">
           {/* Badge */}
           <div 
-            className="inline-flex items-center gap-2 rounded-full bg-zinc-800/80 px-4 py-1.5 text-sm text-zinc-300 border border-zinc-700/50 mb-8"
+            className="inline-flex items-center gap-2 rounded-full bg-[var(--color-surface-elevated)]/80 px-4 py-1.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] mb-8"
             style={{ animation: "fade-in-up 0.5s ease-out" }}
           >
             <span className="relative flex h-2 w-2">
@@ -60,7 +61,7 @@ export default function Home() {
 
           {/* Subheadline */}
           <p 
-            className="mt-6 text-lg md:text-xl text-zinc-400 max-w-2xl leading-relaxed"
+            className="mt-6 text-lg md:text-xl text-[var(--color-text-secondary)] max-w-2xl leading-relaxed"
             style={{ animation: "fade-in-up 0.7s ease-out" }}
           >
             An intelligent tutor that adapts to your pace, understands your goals, and remembers your progress. Start learning smarter today.
@@ -73,14 +74,15 @@ export default function Home() {
           >
             <Link
               href="/signin"
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-display font-semibold text-white bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 shadow-xl shadow-indigo-500/25 transition-all hover:shadow-indigo-500/40 hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-display font-semibold text-white shadow-xl transition-all hover:-translate-y-0.5"
+              style={{ backgroundColor: 'var(--color-brand)' }}
             >
               Start Learning
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
             </Link>
-            <button className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-display font-semibold text-zinc-300 bg-zinc-800/80 border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-600 transition-all">
+            <button className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-display font-semibold text-[var(--color-text-secondary)] bg-[var(--color-surface-elevated)]/80 border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] transition-all">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -95,51 +97,51 @@ export default function Home() {
             style={{ animation: "fade-in-up 0.9s ease-out" }}
           >
             {/* Card 1 */}
-            <div className="group p-6 rounded-2xl bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 transition-all hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-indigo-500/10 flex items-center justify-center mb-4">
-                <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="group p-6 rounded-2xl bg-[var(--color-surface-elevated)]/60 border border-[var(--color-border)] hover:border-[var(--color-border-subtle)] transition-all hover:-translate-y-1">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: 'color-mix(in srgb, var(--color-brand) 20%, transparent)' }}>
+                <svg className="w-5 h-5" style={{ color: 'var(--color-brand)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-display font-semibold text-zinc-100 mb-2">Natural Conversation</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed">Chat naturally with voice or text. Your AI tutor understands context and remembers your learning journey.</p>
+              <h3 className="text-lg font-display font-semibold text-[var(--color-text)] mb-2">Natural Conversation</h3>
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">Chat naturally with voice or text. Your AI tutor understands context and remembers your learning journey.</p>
             </div>
 
             {/* Card 2 */}
-            <div className="group p-6 rounded-2xl bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 transition-all hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/10 flex items-center justify-center mb-4">
-                <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="group p-6 rounded-2xl bg-[var(--color-surface-elevated)]/60 border border-[var(--color-border)] hover:border-[var(--color-border-subtle)] transition-all hover:-translate-y-1">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center mb-4">
+                <svg className="w-5 h-5 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-display font-semibold text-zinc-100 mb-2">Adaptive Learning</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed">Personalized teaching that adjusts to your skill level, learning style, and goals in real-time.</p>
+              <h3 className="text-lg font-display font-semibold text-[var(--color-text)] mb-2">Adaptive Learning</h3>
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">Personalized teaching that adjusts to your skill level, learning style, and goals in real-time.</p>
             </div>
 
             {/* Card 3 */}
-            <div className="group p-6 rounded-2xl bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 transition-all hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/10 flex items-center justify-center mb-4">
-                <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="group p-6 rounded-2xl bg-[var(--color-surface-elevated)]/60 border border-[var(--color-border)] hover:border-[var(--color-border-subtle)] transition-all hover:-translate-y-1">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-4">
+                <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-display font-semibold text-zinc-100 mb-2">Long-term Memory</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed">Your tutor remembers your progress, preferences, and past conversations across all sessions.</p>
+              <h3 className="text-lg font-display font-semibold text-[var(--color-text)] mb-2">Long-term Memory</h3>
+              <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">Your tutor remembers your progress, preferences, and past conversations across all sessions.</p>
             </div>
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 px-6 py-6 border-t border-zinc-800/50">
+      <footer className="relative z-10 px-6 py-6 border-t border-[var(--color-border-subtle)]">
         <div className="mx-auto max-w-6xl flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-[var(--color-text-muted)]">
             Made for students, by students.
           </p>
-          <div className="flex items-center gap-6 text-sm text-zinc-500">
-            <a href="#" className="hover:text-zinc-300 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-zinc-300 transition-colors">Terms</a>
-            <a href="#" className="hover:text-zinc-300 transition-colors">Contact</a>
+          <div className="flex items-center gap-6 text-sm text-[var(--color-text-muted)]">
+            <a href="#" className="hover:text-[var(--color-text-secondary)] transition-colors">Privacy</a>
+            <a href="#" className="hover:text-[var(--color-text-secondary)] transition-colors">Terms</a>
+            <a href="#" className="hover:text-[var(--color-text-secondary)] transition-colors">Contact</a>
           </div>
         </div>
       </footer>

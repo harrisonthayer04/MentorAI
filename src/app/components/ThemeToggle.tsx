@@ -17,24 +17,24 @@ export default function ThemeToggle() {
     setIsDark(shouldBeDark);
     
     // Apply theme immediately
-    if (shouldBeDark) {
+    applyTheme(shouldBeDark);
+  }, []);
+
+  const applyTheme = (dark: boolean) => {
+    if (dark) {
       document.documentElement.classList.add('dark');
+      document.body.style.backgroundColor = '#09090b';
     } else {
       document.documentElement.classList.remove('dark');
+      document.body.style.backgroundColor = '#fafafa';
     }
-  }, []);
+  };
 
   const toggleTheme = () => {
     const newIsDark = !isDark;
     setIsDark(newIsDark);
-    
-    if (newIsDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
+    applyTheme(newIsDark);
+    localStorage.setItem('theme', newIsDark ? 'dark' : 'light');
   };
 
   // Don't render until mounted to avoid hydration mismatch
@@ -45,7 +45,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="p-2.5 rounded-xl bg-zinc-800/80 border border-zinc-700/50 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 hover:border-zinc-600 transition-all"
+      className="p-2.5 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-all"
       aria-label="Toggle theme"
     >
       {isDark ? (

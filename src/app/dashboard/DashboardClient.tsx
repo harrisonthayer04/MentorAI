@@ -195,26 +195,33 @@ export default function DashboardClient() {
   const selectedChat = chats.find((c) => c.id === selectedChatId);
 
   return (
-    <div className="h-screen bg-zinc-950 text-zinc-50 flex flex-col overflow-hidden">
+    <div className="h-screen bg-[var(--color-surface)] dark:bg-zinc-950 text-[var(--color-text)] flex flex-col overflow-hidden">
       {/* Top Header */}
-      <header className="flex-shrink-0 h-14 px-4 flex items-center justify-between border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
+      <header className="flex-shrink-0 h-14 px-4 flex items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 dark:bg-zinc-950/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           {/* Menu Toggle */}
           <button
             aria-label="Toggle sidebar"
             onClick={() => setIsOpen(!isOpen)}
-            className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors"
+            className="p-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]/60 transition-colors"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
+            {isOpen ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            )}
           </button>
           
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[var(--color-brand)] flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
@@ -225,7 +232,7 @@ export default function DashboardClient() {
 
         {/* Current Chat Title */}
         <div className="flex-1 text-center">
-          <span className="text-sm text-zinc-400 truncate max-w-xs inline-block">
+          <span className="text-sm text-[var(--color-text-secondary)] truncate max-w-xs inline-block">
             {selectedChat?.title || "Select a conversation"}
           </span>
         </div>
@@ -234,7 +241,7 @@ export default function DashboardClient() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors"
+            className="p-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]/60 transition-colors"
             aria-label="Settings"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -249,15 +256,19 @@ export default function DashboardClient() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
         <aside
-          className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-zinc-900/95 md:bg-zinc-900/50 border-r border-zinc-800/50 flex flex-col transition-transform duration-200 ease-out ${
-            isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0 md:w-0 md:border-0"
+          className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[var(--color-surface-elevated)]/95 dark:bg-zinc-900/95 border-r border-[var(--color-border-subtle)] flex flex-col transition-all duration-200 ease-out overflow-hidden ${
+            isOpen ? "translate-x-0 md:translate-x-0" : "-translate-x-full md:-translate-x-full"
           }`}
+          style={{ top: '56px' }}
         >
           {/* Sidebar Header */}
-          <div className="flex-shrink-0 p-4 border-b border-zinc-800/50">
+          <div className="flex-shrink-0 p-4 border-b border-[var(--color-border-subtle)]">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-display font-semibold text-sm transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white font-display font-semibold text-sm transition-colors"
+              style={{ backgroundColor: 'var(--color-brand)' }}
+              onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" />
@@ -270,7 +281,7 @@ export default function DashboardClient() {
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto p-2">
             {sortedChats.length === 0 ? (
-              <div className="px-3 py-8 text-center text-sm text-zinc-500">
+              <div className="px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
                 No conversations yet
               </div>
             ) : (
@@ -292,8 +303,8 @@ export default function DashboardClient() {
                     }}
                     className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
                       chat.id === selectedChatId
-                        ? "bg-zinc-800 text-zinc-100"
-                        : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
+                        ? "bg-[var(--color-surface-hover)] text-[var(--color-text)]"
+                        : "text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]/50"
                     }`}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 opacity-60">
@@ -301,7 +312,7 @@ export default function DashboardClient() {
                     </svg>
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-sm font-medium">{chat.title}</div>
-                      <div className="text-xs text-zinc-500 mt-0.5">
+                      <div className="text-xs text-[var(--color-text-muted)] mt-0.5">
                         {new Date(chat.createdAt).toLocaleDateString()}
                       </div>
                     </div>
@@ -311,7 +322,7 @@ export default function DashboardClient() {
                         e.stopPropagation();
                         handleDeleteChat(chat.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-zinc-700/50 transition-all"
+                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-[var(--color-text-muted)] hover:text-red-500 hover:bg-[var(--color-surface-hover)]/50 transition-all"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="3 6 5 6 21 6" />
@@ -327,10 +338,10 @@ export default function DashboardClient() {
           </div>
 
           {/* Sidebar Footer */}
-          <div className="flex-shrink-0 p-3 border-t border-zinc-800/50">
+          <div className="flex-shrink-0 p-3 border-t border-[var(--color-border-subtle)]">
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 text-sm transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]/60 text-sm transition-colors"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
@@ -342,12 +353,13 @@ export default function DashboardClient() {
           </div>
         </aside>
 
-        {/* Mobile Overlay */}
+        {/* Overlay for mobile and desktop when sidebar is open */}
         {isOpen && (
           <button
             aria-label="Close sidebar"
             onClick={() => setIsOpen(false)}
-            className="fixed inset-0 z-30 bg-black/50 md:hidden"
+            className="fixed inset-0 z-30 bg-black/50"
+            style={{ top: '56px' }}
           />
         )}
 
