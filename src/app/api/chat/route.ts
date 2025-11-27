@@ -92,6 +92,14 @@ const IMAGE_MODEL_SLUGS: Record<string, string> = {
   "black-forest-labs/flux.2-pro": "black-forest-labs/flux.2-pro",
 };
 
+// Pure diffusion models that use /images/generations endpoint instead of chat/completions
+const DIFFUSION_MODELS = new Set([
+  "black-forest-labs/flux.2-pro",
+  "black-forest-labs/flux-1.1-pro",
+  "black-forest-labs/flux-pro",
+  "stability-ai/stable-diffusion-xl",
+]);
+
 type MemoryAction = {
   action: "keep" | "delete" | "merge" | "update";
   id?: string;
@@ -428,197 +436,210 @@ export async function POST(req: Request) {
                 console.log(`[generate_image] Starting image generation with model: ${imageModel}`);
                 console.log(`[generate_image] Prompt: ${prompt.substring(0, 100)}...`);
                 
-                // Call OpenRouter image generation API with modalities parameter
-                // The modalities parameter tells OpenRouter we want image output
-                const imageResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
-                    "X-Title": "MentorAI",
-                  },
-                  body: JSON.stringify({
-                    model: imageModel,
-                    messages: [
-                      {
-                        role: "user",
-                        content: `Generate an image: ${prompt}`,
-                      },
-                    ],
-                    // Critical: This tells OpenRouter to return image output
-                    modalities: ["image", "text"],
-                    stream: false,
-                  }),
-                });
+                const isDiffusionModel = DIFFUSION_MODELS.has(imageModel);
+                console.log(`[generate_image] Model type: ${isDiffusionModel ? "diffusion" : "multimodal-chat"}`);
+                
+                let imageUrl = "";
+                
+                if (isDiffusionModel) {
+                  // Pure diffusion models use the /images/generations endpoint
+                  console.log(`[generate_image] Using /images/generations endpoint for diffusion model`);
+                  
+                  const imageResp = await fetch("https://openrouter.ai/api/v1/images/generations", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                      "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
+                      "X-Title": "MentorAI",
+                    },
+                    body: JSON.stringify({
+                      model: imageModel,
+                      prompt: prompt,
+                      n: 1,
+                      size: "1024x1024",
+                    }),
+                  });
 
-                console.log(`[generate_image] Response status: ${imageResp.status}`);
+                  console.log(`[generate_image] Response status: ${imageResp.status}`);
 
-                if (!imageResp.ok) {
-                  const errorText = await imageResp.text();
-                  console.error(`[generate_image] API error: ${errorText}`);
-                  result = { ok: false, error: `Image generation failed: ${errorText}` };
+                  if (!imageResp.ok) {
+                    const errorText = await imageResp.text();
+                    console.error(`[generate_image] API error: ${errorText}`);
+                    result = { ok: false, error: `Image generation failed: ${errorText}` };
+                  } else {
+                    const imageData = await imageResp.json();
+                    
+                    console.log(`[generate_image] ========== FULL API RESPONSE ==========`);
+                    console.log(JSON.stringify(imageData, null, 2));
+                    console.log(`[generate_image] ========================================`);
+                    
+                    // Standard images/generations response format: { data: [{ url: "..." }] }
+                    if (Array.isArray(imageData?.data) && imageData.data.length > 0) {
+                      const firstData = imageData.data[0];
+                      if (firstData?.url) {
+                        imageUrl = firstData.url;
+                        console.log(`[generate_image] Found URL in data[0].url`);
+                      } else if (typeof firstData?.b64_json === "string") {
+                        imageUrl = `data:image/png;base64,${firstData.b64_json}`;
+                        console.log(`[generate_image] Found b64_json in data[0]`);
+                      }
+                    }
+                    
+                    if (imageUrl) {
+                      const urlPreview = imageUrl.length > 100 ? `${imageUrl.substring(0, 100)}...` : imageUrl;
+                      console.log(`[generate_image] SUCCESS! Image URL: ${urlPreview}`);
+                      result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
+                    } else {
+                      console.error(`[generate_image] FAILED: No image URL found in diffusion response`);
+                      result = { ok: false, error: "No image URL in response. Check server logs." };
+                    }
+                  }
                 } else {
-                  const imageData = await imageResp.json();
+                  // Multimodal chat models use /chat/completions with modalities
+                  console.log(`[generate_image] Using /chat/completions with modalities for multimodal model`);
                   
-                  // Log the full response for debugging
-                  console.log(`[generate_image] ========== FULL API RESPONSE ==========`);
-                  console.log(JSON.stringify(imageData, null, 2));
-                  console.log(`[generate_image] ========================================`);
-                  
-                  let imageUrl = "";
-                  
-                  // Method 1: OpenRouter documented format - message.images[].image_url.url
-                  const messageImages = imageData?.choices?.[0]?.message?.images;
-                  if (Array.isArray(messageImages) && messageImages.length > 0) {
-                    console.log(`[generate_image] Found images array with ${messageImages.length} items`);
-                    const firstImage = messageImages[0];
-                    console.log(`[generate_image] First image structure:`, JSON.stringify(firstImage, null, 2));
+                  const imageResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                      "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
+                      "X-Title": "MentorAI",
+                    },
+                    body: JSON.stringify({
+                      model: imageModel,
+                      messages: [
+                        {
+                          role: "user",
+                          content: `Generate an image: ${prompt}`,
+                        },
+                      ],
+                      modalities: ["image", "text"],
+                      stream: false,
+                    }),
+                  });
+
+                  console.log(`[generate_image] Response status: ${imageResp.status}`);
+
+                  if (!imageResp.ok) {
+                    const errorText = await imageResp.text();
+                    console.error(`[generate_image] API error: ${errorText}`);
+                    result = { ok: false, error: `Image generation failed: ${errorText}` };
+                  } else {
+                    const imageData = await imageResp.json();
                     
-                    if (typeof firstImage === "string") {
-                      imageUrl = firstImage;
-                      console.log(`[generate_image] Method 1a: Direct string URL`);
-                    } else if (firstImage?.image_url?.url) {
-                      imageUrl = firstImage.image_url.url;
-                      console.log(`[generate_image] Method 1b: image_url.url format`);
-                    } else if (firstImage?.url) {
-                      imageUrl = firstImage.url;
-                      console.log(`[generate_image] Method 1c: Direct url property`);
-                    } else if (typeof firstImage?.b64_json === "string") {
-                      imageUrl = `data:image/png;base64,${firstImage.b64_json}`;
-                      console.log(`[generate_image] Method 1d: b64_json format`);
-                    }
-                  }
-                  
-                  // Method 2: Top-level data array (DALL-E style)
-                  if (!imageUrl && Array.isArray(imageData?.data) && imageData.data.length > 0) {
-                    console.log(`[generate_image] Found top-level data array with ${imageData.data.length} items`);
-                    const firstData = imageData.data[0];
-                    console.log(`[generate_image] First data item:`, JSON.stringify(firstData, null, 2));
+                    console.log(`[generate_image] ========== FULL API RESPONSE ==========`);
+                    console.log(JSON.stringify(imageData, null, 2));
+                    console.log(`[generate_image] ========================================`);
                     
-                    if (firstData?.url) {
-                      imageUrl = firstData.url;
-                      console.log(`[generate_image] Method 2a: data[].url`);
-                    } else if (typeof firstData?.b64_json === "string") {
-                      imageUrl = `data:image/png;base64,${firstData.b64_json}`;
-                      console.log(`[generate_image] Method 2b: data[].b64_json`);
+                    // Method 1: OpenRouter documented format - message.images[].image_url.url
+                    const messageImages = imageData?.choices?.[0]?.message?.images;
+                    if (Array.isArray(messageImages) && messageImages.length > 0) {
+                      console.log(`[generate_image] Found images array with ${messageImages.length} items`);
+                      const firstImage = messageImages[0];
+                      
+                      if (typeof firstImage === "string") {
+                        imageUrl = firstImage;
+                        console.log(`[generate_image] Method 1a: Direct string URL`);
+                      } else if (firstImage?.image_url?.url) {
+                        imageUrl = firstImage.image_url.url;
+                        console.log(`[generate_image] Method 1b: image_url.url format`);
+                      } else if (firstImage?.url) {
+                        imageUrl = firstImage.url;
+                        console.log(`[generate_image] Method 1c: Direct url property`);
+                      } else if (typeof firstImage?.b64_json === "string") {
+                        imageUrl = `data:image/png;base64,${firstImage.b64_json}`;
+                        console.log(`[generate_image] Method 1d: b64_json format`);
+                      }
                     }
-                  }
-                  
-                  // Method 3: Google/Gemini native format with inline_data
-                  if (!imageUrl) {
-                    const candidates = imageData?.candidates;
-                    if (Array.isArray(candidates) && candidates.length > 0) {
-                      console.log(`[generate_image] Found candidates array (Gemini native format)`);
-                      const parts = candidates[0]?.content?.parts;
-                      if (Array.isArray(parts)) {
-                        for (const part of parts) {
-                          if (part?.inline_data?.data) {
+                    
+                    // Method 2: Top-level data array (DALL-E style)
+                    if (!imageUrl && Array.isArray(imageData?.data) && imageData.data.length > 0) {
+                      console.log(`[generate_image] Found top-level data array`);
+                      const firstData = imageData.data[0];
+                      
+                      if (firstData?.url) {
+                        imageUrl = firstData.url;
+                        console.log(`[generate_image] Method 2a: data[].url`);
+                      } else if (typeof firstData?.b64_json === "string") {
+                        imageUrl = `data:image/png;base64,${firstData.b64_json}`;
+                        console.log(`[generate_image] Method 2b: data[].b64_json`);
+                      }
+                    }
+                    
+                    // Method 3: Google/Gemini native format with inline_data
+                    if (!imageUrl) {
+                      const candidates = imageData?.candidates;
+                      if (Array.isArray(candidates) && candidates.length > 0) {
+                        console.log(`[generate_image] Found candidates array (Gemini native format)`);
+                        const parts = candidates[0]?.content?.parts;
+                        if (Array.isArray(parts)) {
+                          for (const part of parts) {
+                            if (part?.inline_data?.data) {
+                              const mimeType = part.inline_data.mime_type || "image/png";
+                              imageUrl = `data:${mimeType};base64,${part.inline_data.data}`;
+                              console.log(`[generate_image] Method 3: Gemini inline_data format`);
+                              break;
+                            }
+                          }
+                        }
+                      }
+                    }
+                    
+                    // Method 4: Check message content for various formats
+                    if (!imageUrl) {
+                      const imageContent = imageData?.choices?.[0]?.message?.content;
+                      
+                      if (typeof imageContent === "string") {
+                        if (imageContent.startsWith("data:image")) {
+                          imageUrl = imageContent.trim();
+                          console.log(`[generate_image] Method 4a: Direct data URL in content`);
+                        } else if (imageContent.startsWith("http")) {
+                          imageUrl = imageContent.trim().split(/\s/)[0];
+                          console.log(`[generate_image] Method 4b: Direct HTTP URL`);
+                        } else {
+                          const markdownMatch = imageContent.match(/!\[.*?\]\(((?:https?:\/\/|data:image)[^\s)]+)\)/);
+                          if (markdownMatch) {
+                            imageUrl = markdownMatch[1];
+                            console.log(`[generate_image] Method 4c: Extracted from markdown`);
+                          } else {
+                            const urlMatch = imageContent.match(/(https?:\/\/[^\s"'<>]+)/i);
+                            if (urlMatch) {
+                              imageUrl = urlMatch[1];
+                              console.log(`[generate_image] Method 4d: Found URL in text`);
+                            }
+                          }
+                        }
+                      } else if (Array.isArray(imageContent)) {
+                        for (const part of imageContent) {
+                          if (part?.type === "image_url" && part?.image_url?.url) {
+                            imageUrl = part.image_url.url;
+                            console.log(`[generate_image] Method 4e: content[].image_url.url`);
+                            break;
+                          } else if (part?.type === "image" && part?.url) {
+                            imageUrl = part.url;
+                            console.log(`[generate_image] Method 4f: content[].url`);
+                            break;
+                          } else if (part?.inline_data?.data) {
                             const mimeType = part.inline_data.mime_type || "image/png";
                             imageUrl = `data:${mimeType};base64,${part.inline_data.data}`;
-                            console.log(`[generate_image] Method 3a: Gemini inline_data format`);
+                            console.log(`[generate_image] Method 4g: content[].inline_data`);
                             break;
                           }
                         }
                       }
                     }
-                  }
-                  
-                  // Method 4: Check message content
-                  if (!imageUrl) {
-                    const imageContent = imageData?.choices?.[0]?.message?.content;
-                    console.log(`[generate_image] Checking message.content - type: ${typeof imageContent}`);
-                    
-                    if (typeof imageContent === "string") {
-                      console.log(`[generate_image] Content (first 1000 chars): ${imageContent.substring(0, 1000)}`);
-                      
-                      // Check if it's a data URL
-                      if (imageContent.startsWith("data:image")) {
-                        imageUrl = imageContent.trim();
-                        console.log(`[generate_image] Method 4a: Direct data URL in content`);
-                      } 
-                      // Check if it's a direct HTTP URL
-                      else if (imageContent.startsWith("http")) {
-                        imageUrl = imageContent.trim().split(/\s/)[0]; // Take first URL-like string
-                        console.log(`[generate_image] Method 4b: Direct HTTP URL`);
-                      }
-                      // Try to extract from markdown
-                      else {
-                        const markdownMatch = imageContent.match(/!\[.*?\]\(((?:https?:\/\/|data:image)[^\s)]+)\)/);
-                        if (markdownMatch) {
-                          imageUrl = markdownMatch[1];
-                          console.log(`[generate_image] Method 4c: Extracted from markdown`);
-                        } else {
-                          // Try to find any image URL
-                          const urlMatch = imageContent.match(/(https?:\/\/[^\s"'<>]+)/i);
-                          if (urlMatch) {
-                            imageUrl = urlMatch[1];
-                            console.log(`[generate_image] Method 4d: Found URL in text`);
-                          }
-                        }
-                      }
-                    } else if (Array.isArray(imageContent)) {
-                      console.log(`[generate_image] Content is array with ${imageContent.length} parts`);
-                      for (let i = 0; i < imageContent.length; i++) {
-                        const part = imageContent[i];
-                        console.log(`[generate_image] Part ${i}:`, JSON.stringify(part, null, 2));
-                        
-                        // Various multimodal content formats
-                        if (part?.type === "image_url" && part?.image_url?.url) {
-                          imageUrl = part.image_url.url;
-                          console.log(`[generate_image] Method 4e: content[].image_url.url`);
-                          break;
-                        } else if (part?.type === "image" && part?.url) {
-                          imageUrl = part.url;
-                          console.log(`[generate_image] Method 4f: content[].url`);
-                          break;
-                        } else if (part?.type === "image" && part?.source?.data) {
-                          const mediaType = part?.source?.media_type || "image/png";
-                          imageUrl = `data:${mediaType};base64,${part.source.data}`;
-                          console.log(`[generate_image] Method 4g: content[].source.data (Anthropic format)`);
-                          break;
-                        } else if (typeof part?.image_url === "string") {
-                          imageUrl = part.image_url;
-                          console.log(`[generate_image] Method 4h: content[].image_url as string`);
-                          break;
-                        } else if (part?.inline_data?.data) {
-                          // Gemini multimodal content format within choices
-                          const mimeType = part.inline_data.mime_type || "image/png";
-                          imageUrl = `data:${mimeType};base64,${part.inline_data.data}`;
-                          console.log(`[generate_image] Method 4i: content[].inline_data (Gemini format)`);
-                          break;
-                        }
-                      }
-                    }
-                  }
 
-                  if (imageUrl) {
-                    const urlPreview = imageUrl.length > 100 ? `${imageUrl.substring(0, 100)}...` : imageUrl;
-                    console.log(`[generate_image] SUCCESS! Image URL: ${urlPreview}`);
-                    result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
-                  } else {
-                    console.error(`[generate_image] FAILED: No image URL found in response`);
-                    console.error(`[generate_image] Response keys: ${Object.keys(imageData || {}).join(", ")}`);
-                    if (imageData?.choices?.[0]) {
-                      console.error(`[generate_image] Choice keys: ${Object.keys(imageData.choices[0]).join(", ")}`);
-                      if (imageData.choices[0].message) {
-                        console.error(`[generate_image] Message keys: ${Object.keys(imageData.choices[0].message).join(", ")}`);
-                      }
+                    if (imageUrl) {
+                      const urlPreview = imageUrl.length > 100 ? `${imageUrl.substring(0, 100)}...` : imageUrl;
+                      console.log(`[generate_image] SUCCESS! Image URL: ${urlPreview}`);
+                      result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
+                    } else {
+                      console.error(`[generate_image] FAILED: No image URL found in multimodal response`);
+                      console.error(`[generate_image] Response keys: ${Object.keys(imageData || {}).join(", ")}`);
+                      result = { ok: false, error: "No image URL in response. Check server logs." };
                     }
-                    // Check for Gemini native format
-                    if (imageData?.candidates?.[0]) {
-                      console.error(`[generate_image] Candidate keys: ${Object.keys(imageData.candidates[0]).join(", ")}`);
-                      if (imageData.candidates[0].content) {
-                        console.error(`[generate_image] Candidate content keys: ${Object.keys(imageData.candidates[0].content).join(", ")}`);
-                        if (Array.isArray(imageData.candidates[0].content.parts)) {
-                          console.error(`[generate_image] Parts count: ${imageData.candidates[0].content.parts.length}`);
-                          imageData.candidates[0].content.parts.forEach((p: Record<string, unknown>, idx: number) => {
-                            console.error(`[generate_image] Part ${idx} keys: ${Object.keys(p).join(", ")}`);
-                          });
-                        }
-                      }
-                    }
-                    result = { ok: false, error: "No image URL in response. Check server logs for full API response." };
                   }
                 }
               }
