@@ -1,19 +1,19 @@
 import "./globals.css";
 import "katex/dist/katex.min.css";
-import { Roboto, Open_Sans } from 'next/font/google';
+import { Plus_Jakarta_Sans, DM_Sans } from 'next/font/google';
 import Providers from './providers';
 
-// Configure the fonts
-const roboto = Roboto({ 
+// Configure distinctive modern fonts
+const plusJakarta = Plus_Jakarta_Sans({ 
   subsets: ['latin'],
-  weight: ['300', '400', '500', '700'],
-  variable: '--font-roboto',
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-plus-jakarta',
 });
 
-const openSans = Open_Sans({ 
+const dmSans = DM_Sans({ 
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-open-sans',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-dm-sans',
 });
 
 export default function RootLayout({
@@ -22,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="bg-white dark:bg-gray-900">
-      <body className={`${roboto.variable} ${openSans.variable} font-sans antialiased`}>
+    <html lang="en" className="dark">
+      <body className={`${plusJakarta.variable} ${dmSans.variable} font-sans antialiased bg-zinc-950`}>
         <Providers>
           {children}
         </Providers>

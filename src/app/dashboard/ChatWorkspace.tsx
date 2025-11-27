@@ -91,6 +91,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [autoSendTranscription, setAutoSendTranscription] = useState<boolean>(true);
   const [debugMode, setDebugMode] = useState<boolean>(false);
+  const [showSettings, setShowSettings] = useState(false);
   const debugLogsRef = useRef<Map<string, DebugLogEntry[]>>(new Map());
   const [debugLogVersion, setDebugLogVersion] = useState<number>(0);
   const hydratedThreadsRef = useRef<Set<string>>(new Set());
@@ -199,9 +200,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     hydratedThreadsRef.current.add(threadId);
   }, [appendDebugLogs, debugMode, messages, threadId]);
 
-  // Stop TTS when threadId changes (user leaves current chat)
+  // Stop TTS when threadId changes
   useEffect(() => {
-    // Stop any currently playing audio when switching chats
     try { 
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
@@ -209,12 +209,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     } catch {}
   }, [threadId]);
 
-
   const sendMessage = async (messageText?: string) => {
     if (isLoading) return;
     const text = (messageText ?? inputValue).trim();
     if (!text) return;
-    if (!threadId) return; // can't send without a selected thread
+    if (!threadId) return;
     const targetThreadId = threadId;
     addLocalDebugEntry("client", `User message sent: ${text}`, targetThreadId);
     const now = Date.now();
@@ -229,7 +228,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
     try {
       setIsLoading(true);
-      // Persist the user message on the server immediately
       try {
         const res = await fetch("/api/messages", {
           method: "POST",
@@ -258,7 +256,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         }
       } catch {}
 
-      // Trigger AI response; server will persist assistant reply
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -280,7 +277,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         appendDebugLogs(targetThreadId, debugLog);
       }
       const content = assistantContent ?? assistantError ?? "(no response)";
-      // Do not append assistant locally (server will save it). Rely on polling below to render.
       if (assistantError) {
         addLocalDebugEntry("server_error", assistantError, targetThreadId);
         const aiMsg: ChatMessage = {
@@ -330,12 +326,9 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         return alert("No speech detected.");
       }
 
-      // Auto-send if enabled, otherwise wait for user to click send
       if (autoSendTranscription) {
-        // Pass transcript directly to sendMessage to avoid state timing issues
         await sendMessage(transcript);
       } else {
-        // Set transcript in input box for manual review/editing
         setInputValue(transcript);
       }
     } catch (e) {
@@ -347,7 +340,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const startRecording = useCallback(async () => {
     if (isRecording) return;
     
-    // Stop TTS when user starts recording
     if (stopTTSRef.current) {
       stopTTSRef.current();
     }
@@ -390,11 +382,9 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     await sendMessage();
   };
 
-  // Load messages for selected thread from server and poll, using an in-memory cache
+  // Load messages for selected thread from server
   useEffect(() => {
     let cancelled = false;
-
-    // Hydrate from cache immediately to avoid flicker
     setInputValue("");
     setIsLoading(false);
     if (!threadId) {
@@ -440,7 +430,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   }, [threadId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
@@ -463,7 +453,6 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     }
   }, [clampPlaybackRate]);
 
-  // Persist speak setting
   useEffect(() => {
     try {
       localStorage.setItem("bm_speak_enabled", String(speakEnabled));
@@ -489,202 +478,236 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   }, [autoSendTranscription]);
 
   return (
-    <div className="w-full h-full">
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 items-stretch h-full overflow-hidden">
-        {/* Left: Chat box (1/4) */}
-        <div className="md:col-span-3 min-h-0 h-full">
-          <div className="h-full rounded-2xl bg-white/70 dark:bg-white/10 backdrop-blur border border-white/40 dark:border-white/10 shadow flex flex-col">
-            {/* Model selector */}
-            <div className="p-4 border-b border-white/40 dark:border-white/10">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chat Model</label>
-              <select
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                className="w-full rounded-xl bg-white/70 dark:bg-gray-900/40 border border-white/40 dark:border-white/10 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/40"
-              >
-                <option value="minimax/minimax-m2:free">MiniMax M2 Free</option>
-                <option value="x-ai/grok-4-fast">Grok 4 Fast</option>
-                <option value="x-ai/grok-code-fast-1">Grok Code Fast 1</option>
-                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-                <option value="gemini-3-pro">Gemini 3 Pro</option>
-                <option value="anthropic/claude-opus-4.5">Claude Opus 4.5</option>
-                <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
-                <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5</option>
-                <option value="moonshot/kimi-k2-thinking">Kimi K2 Thinking</option>
-                <option value="qwen/qwen3-235b-a22b-2507">Qwen3 235B A22B 2507</option>
-                <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
-                <option value="deepseek/deepseek-v3.1-terminus">DeepSeek V3.1 Terminus</option>
-                <option value="z-ai/glm-4.6">GLM 4.6</option>
-              </select>
+    <div className="flex flex-col h-full">
+      {/* Chat Messages */}
+      <div className="flex-1 overflow-hidden">
+        <ChatPanel 
+          messages={messages} 
+          isLoading={isLoading} 
+          enableAudio={speakEnabled} 
+          playbackRate={playbackRate}
+          onStopTTSRef={stopTTSRef}
+        />
+      </div>
 
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 mt-4">Image Model</label>
-              <select
-                value={imageModelId}
-                onChange={(e) => setImageModelId(e.target.value)}
-                className="w-full rounded-xl bg-white/70 dark:bg-gray-900/40 border border-white/40 dark:border-white/10 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/40"
+      {/* Input Area */}
+      <div className="flex-shrink-0 border-t border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
+        <div className="max-w-3xl mx-auto p-4">
+          {/* Settings toggle row */}
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+              </svg>
+              Chat settings
+              <svg 
+                width="12" 
+                height="12" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2"
+                className={`transition-transform ${showSettings ? "rotate-180" : ""}`}
               >
-                <option value="google/gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
-                <option value="google/gemini-3-pro-image-preview">Gemini 3 Pro Image Preview</option>
-                <option value="openai/gpt-5-image">GPT-5 Image</option>
-                <option value="black-forest-labs/flux.2-pro">FLUX.2 Pro</option>
-              </select>
-              {debugMode && (
-                <div className="mt-4">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            
+            <div className="flex items-center gap-4">
+              {/* Audio toggle */}
+              <button
+                onClick={() => setSpeakEnabled(!speakEnabled)}
+                className={`flex items-center gap-1.5 text-xs transition-colors ${
+                  speakEnabled ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  {speakEnabled && (
+                    <>
+                      <path d="M19.07 4.93a10 10 0 010 14.14" />
+                      <path d="M15.54 8.46a5 5 0 010 7.07" />
+                    </>
+                  )}
+                </svg>
+                Audio {speakEnabled ? "on" : "off"}
+              </button>
+            </div>
+          </div>
+
+          {/* Collapsible settings panel */}
+          {showSettings && (
+            <div className="mb-4 p-4 rounded-xl bg-zinc-900/60 border border-zinc-800 space-y-4" style={{ animation: "fade-in 0.2s ease-out" }}>
+              {/* Model selectors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Chat Model</label>
+                  <select
+                    value={modelId}
+                    onChange={(e) => setModelId(e.target.value)}
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  >
+                    <option value="minimax/minimax-m2:free">MiniMax M2 Free</option>
+                    <option value="x-ai/grok-4-fast">Grok 4 Fast</option>
+                    <option value="x-ai/grok-code-fast-1">Grok Code Fast 1</option>
+                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+                    <option value="gemini-3-pro">Gemini 3 Pro</option>
+                    <option value="anthropic/claude-opus-4.5">Claude Opus 4.5</option>
+                    <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
+                    <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5</option>
+                    <option value="moonshot/kimi-k2-thinking">Kimi K2 Thinking</option>
+                    <option value="qwen/qwen3-235b-a22b-2507">Qwen3 235B A22B 2507</option>
+                    <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+                    <option value="deepseek/deepseek-v3.1-terminus">DeepSeek V3.1 Terminus</option>
+                    <option value="z-ai/glm-4.6">GLM 4.6</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Image Model</label>
+                  <select
+                    value={imageModelId}
+                    onChange={(e) => setImageModelId(e.target.value)}
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  >
+                    <option value="google/gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
+                    <option value="google/gemini-3-pro-image-preview">Gemini 3 Pro Image Preview</option>
+                    <option value="openai/gpt-5-image">GPT-5 Image</option>
+                    <option value="black-forest-labs/flux.2-pro">FLUX.2 Pro</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Audio settings */}
+              <div className="pt-3 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-zinc-300">Playback speed</div>
+                    <div className="text-xs text-zinc-500">{playbackRate.toFixed(2)}x</div>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.75"
+                    max="1.5"
+                    step="0.05"
+                    value={playbackRate}
+                    onChange={(e) => setPlaybackRate(clampPlaybackRate(parseFloat(e.target.value)))}
+                    className="w-32 accent-indigo-500"
+                    disabled={!speakEnabled}
+                  />
+                </div>
+              </div>
+
+              {/* Voice input settings */}
+              <div className="pt-3 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-zinc-300">Auto-send voice input</div>
+                    <div className="text-xs text-zinc-500">Send immediately after transcription</div>
+                  </div>
                   <button
-                    type="button"
+                    role="switch"
+                    aria-checked={autoSendTranscription}
+                    onClick={() => setAutoSendTranscription(!autoSendTranscription)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      autoSendTranscription ? "bg-indigo-500" : "bg-zinc-700"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        autoSendTranscription ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Debug section */}
+              {debugMode && (
+                <div className="pt-3 border-t border-zinc-800">
+                  <button
                     onClick={handleDownloadLogs}
                     disabled={!threadId || currentLogCount === 0}
-                    className="w-full rounded-xl border border-dashed border-gray-400/70 dark:border-gray-500/70 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed hover:bg-white/80 dark:hover:bg-gray-900/40 transition-colors"
-                    title={currentLogCount === 0 ? "No debug logs yet" : "Download full chat log"}
+                    className="w-full rounded-lg border border-dashed border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-400 disabled:opacity-50 hover:bg-zinc-800/50 transition-colors"
                   >
-                    Download logs
+                    Download logs ({currentLogCount} entries)
                   </button>
-                  <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                    {currentLogCount > 0
-                      ? `Ready with ${currentLogCount} entries`
-                      : "Send a message to capture logs"}
-                  </p>
                 </div>
               )}
             </div>
+          )}
 
-            {/* Response mode toggle */}
-            <div className="px-4 py-3 border-b border-white/40 dark:border-white/10">
-              <div className="flex items-center justify-between">
-                <label htmlFor="speak-toggle" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Audio replies
-                </label>
-                <button
-                  id="speak-toggle"
-                  role="switch"
-                  aria-checked={speakEnabled}
-                  onClick={() => setSpeakEnabled((v) => !v)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    speakEnabled ? "bg-[var(--color-brand)]" : "bg-gray-300 dark:bg-gray-700"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                      speakEnabled ? "translate-x-5" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                {speakEnabled ? "Assistant will speak responses" : "Assistant will reply with text only"}
-              </div>
-              <div className="mt-4">
-                <label
-                  htmlFor="speech-rate"
-                  className={`text-sm font-medium flex items-center justify-between ${
-                    speakEnabled ? "text-gray-700 dark:text-gray-300" : "text-gray-400 dark:text-gray-500"
-                  }`}
-                >
-                  Playback speed
-                  <span className="text-xs">{playbackRate.toFixed(2)}x</span>
-                </label>
-                <input
-                  id="speech-rate"
-                  type="range"
-                  min="0.75"
-                  max="1.5"
-                  step="0.05"
-                  value={playbackRate}
-                  onChange={(e) => setPlaybackRate(clampPlaybackRate(parseFloat(e.target.value)))}
-                  className="w-full mt-2"
-                  aria-valuemin={0.75}
-                  aria-valuemax={1.5}
-                  aria-valuenow={playbackRate}
-                  aria-label="Playback speed"
-                  disabled={!speakEnabled}
-                />
-              </div>
-            </div>
+          {/* Input form */}
+          <form onSubmit={handleSubmit} className="relative">
+            <textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              placeholder={threadId ? "Send a message..." : "Select a conversation to start"}
+              className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 pr-24 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-transparent resize-none"
+              disabled={!threadId}
+              style={{ minHeight: "48px", maxHeight: "200px" }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = "auto";
+                target.style.height = Math.min(target.scrollHeight, 200) + "px";
+              }}
+            />
 
-            {/* Auto-send transcription toggle */}
-            <div className="px-4 py-3 border-b border-white/40 dark:border-white/10">
-              <div className="flex items-center justify-between">
-                <label htmlFor="auto-send-toggle" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Auto-send voice input
-                </label>
-                <button
-                  id="auto-send-toggle"
-                  role="switch"
-                  aria-checked={autoSendTranscription}
-                  onClick={() => setAutoSendTranscription((v) => !v)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    autoSendTranscription ? "bg-[var(--color-brand)]" : "bg-gray-300 dark:bg-gray-700"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                      autoSendTranscription ? "translate-x-5" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                {autoSendTranscription 
-                  ? "Voice messages send immediately after transcription" 
-                  : "Voice messages wait in the input box for manual send"}
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-4 mt-auto">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Your message
-              </label>
-
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={5}
-                placeholder={threadId ? "Type here..." : "Create or select a conversation to start"}
-                className="w-full rounded-xl bg-white/80 dark:bg-gray-900/40 border border-white/40 dark:border-white/10 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/40 resize-none"
+            {/* Action buttons */}
+            <div className="absolute right-2 bottom-2 flex items-center gap-1">
+              {/* Voice input */}
+              <button
+                type="button"
+                onMouseDown={startRecording}
+                onMouseUp={stopRecording}
+                onMouseLeave={stopRecording}
+                onTouchStart={startRecording}
+                onTouchEnd={stopRecording}
+                onTouchCancel={stopRecording}
                 disabled={!threadId}
-              />
+                className={`p-2 rounded-lg transition-colors ${
+                  isRecording 
+                    ? "bg-red-500 text-white animate-pulse" 
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={isRecording ? "Recording..." : "Hold to talk"}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                  <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              </button>
 
-              {/* Controls */}
-              <div className="mt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onMouseDown={startRecording}
-                  onMouseUp={stopRecording}
-                  onMouseLeave={stopRecording}
-                  onTouchStart={startRecording}
-                  onTouchEnd={stopRecording}
-                  onTouchCancel={stopRecording}
-                  disabled={!threadId}
-                  className={`rounded-xl px-4 py-2 text-white ${
-                    isRecording ? "bg-red-600 animate-pulse" : "bg-gray-500 hover:bg-gray-600"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title={isRecording ? "Recording..." : "Hold to record"}
-                >
-                  {isRecording ? "Recording..." : "🎙️ Hold to Talk"}
-                </button>
+              {/* Send button */}
+              <button
+                type="submit"
+                disabled={!threadId || !inputValue.trim() || isLoading}
+                className="p-2 rounded-lg bg-indigo-500 text-white hover:bg-indigo-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-500"
+              >
+                {isLoading ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" className="animate-spin">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="30 70" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </form>
 
-                <button
-                  type="submit"
-                  className="rounded-xl bg-[var(--color-brand)] hover:bg-[color-mix(in_oklab,var(--color-brand),black_10%)] text-white font-display font-semibold px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!threadId}
-                >
-                  Send
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        {/* Right: Conversation area (3/4) */}
-        <div className="md:col-span-9 min-h-0 h-full">
-          <ChatPanel 
-            messages={messages} 
-            isLoading={isLoading} 
-            enableAudio={speakEnabled} 
-            playbackRate={playbackRate}
-            onStopTTSRef={stopTTSRef}
-          />
+          <p className="mt-2 text-xs text-center text-zinc-600">
+            Press Enter to send, Shift+Enter for new line
+          </p>
         </div>
       </div>
     </div>
@@ -711,7 +734,6 @@ function ChatPanel({
   const currentUrlRef = useRef<string | null>(null);
   const animatedMessagesRef = useRef<Set<string>>(new Set());
   const [playBlocked, setPlayBlocked] = useState<boolean>(false);
-  const [showTopBlur, setShowTopBlur] = useState<boolean>(false);
   const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
@@ -724,7 +746,6 @@ function ChatPanel({
   const latestAssistantText = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       if (messages[i].role === "assistant") {
-        // Use speechContent if available, otherwise fall back to content
         return messages[i].speechContent || messages[i].content;
       }
     }
@@ -751,27 +772,23 @@ function ChatPanel({
 
   const stopTTS = useCallback(() => {
     try {
-      // Stop audio element
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
         audioRef.current = null;
       }
-      // Stop speech synthesis
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
-      // Clean up URL
       if (currentUrlRef.current) {
         URL.revokeObjectURL(currentUrlRef.current);
         currentUrlRef.current = null;
       }
       setIsPlaying(false);
-      lastSpokenRef.current = ""; // Reset so it can play again if needed
+      lastSpokenRef.current = "";
     } catch {}
   }, []);
 
-  // Expose stopTTS function via ref
   useEffect(() => {
     if (onStopTTSRef) {
       onStopTTSRef.current = stopTTS;
@@ -792,16 +809,14 @@ function ChatPanel({
         el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       }
     }
-    if (el) setShowTopBlur(el.scrollTop > 0);
     
-    // Reset animated messages when thread changes (messages array becomes empty)
     if (messages.length === 0) {
       animatedMessagesRef.current.clear();
     }
   }, [messages, isLoading, isAtBottom]);
 
   useEffect(() => {
-    if (!enableAudio) return; // audio disabled
+    if (!enableAudio) return;
     if (typeof window === "undefined") return;
     const text = (latestAssistantText || "").trim();
     if (!text || text === lastSpokenRef.current) return;
@@ -857,7 +872,6 @@ function ChatPanel({
     };
   }, [latestAssistantText, speakWithWebSpeech, enableAudio, playbackRate]);
 
-  // Reset playBlocked and isPlaying if audio is disabled
   useEffect(() => {
     if (!enableAudio) {
       setPlayBlocked(false);
@@ -866,21 +880,32 @@ function ChatPanel({
     }
   }, [enableAudio, stopTTS]);
 
-
-  // Stop TTS when component unmounts
   useEffect(() => {
     return () => {
       stopTTS();
     };
   }, [stopTTS]);
 
+  // Empty state
+  if (messages.length === 0 && !isLoading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 flex items-center justify-center mb-6">
+          <svg className="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-display font-semibold text-zinc-200 mb-2">Start a conversation</h2>
+        <p className="text-sm text-zinc-500 max-w-md">Ask me anything — math, science, coding, writing, or any topic you want to explore.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full rounded-2xl bg-white/70 dark:bg-white/10 backdrop-blur border border-white/40 dark:border-white/10 shadow overflow-hidden relative">
-      {showTopBlur && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-4 md:h-6 bg-gradient-to-b from-black/10 to-transparent dark:from-black/20 z-10" />
-      )}
+    <div className="h-full flex flex-col overflow-hidden relative">
+      {/* Play blocked banner */}
       {playBlocked && (
-        <div className="absolute inset-0 z-10 flex items-end justify-center pb-6">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
           <button
             onClick={() => {
               if (!audioRef.current) return;
@@ -889,253 +914,206 @@ function ChatPanel({
                 .then(() => setPlayBlocked(false))
                 .catch(() => {});
             }}
-            className="rounded-xl bg-[var(--color-brand)] hover:bg-[color-mix(in_oklab,var(--color-brand),black_8%)] text-white font-display font-semibold px-4 py-2 shadow-lg border border-white/30 dark:border-white/10"
+            className="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold shadow-lg transition-colors"
           >
             Play response
           </button>
         </div>
       )}
+
+      {/* Stop button */}
       {isPlaying && enableAudio && (
         <div className="absolute top-4 right-4 z-10">
           <button
             onClick={stopTTS}
-            className="rounded-xl bg-red-500 hover:bg-red-600 text-white font-display font-semibold px-4 py-2 shadow-lg border border-white/30 dark:border-white/10 flex items-center gap-2"
-            title="Stop audio playback"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm hover:bg-zinc-700 transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="6" y="4" width="4" height="16" />
-              <rect x="14" y="4" width="4" height="16" />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
             </svg>
             Stop
           </button>
         </div>
       )}
+
+      {/* Messages */}
       <div
         ref={containerRef}
-        className="w-full flex-1 overflow-y-auto p-3 md:p-4 pb-8 space-y-3"
+        className="flex-1 overflow-y-auto"
         onScroll={() => {
           const el = containerRef.current;
           if (!el) return;
-          setShowTopBlur(el.scrollTop > 0);
           const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
           setIsAtBottom(distanceFromBottom < 48);
         }}
       >
-        {messages.map((m) => {
-          const isNewMessage = !animatedMessagesRef.current.has(m.id);
-          if (isNewMessage) {
-            // Mark as animated (will be added to ref on next render)
-            animatedMessagesRef.current.add(m.id);
-          }
-          
-          return (
-            <div
-              key={m.id}
-              className={`flex items-start gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-              style={isNewMessage ? { animation: "fade-in-message 0.3s ease-out" } : undefined}
-            >
-            <div
-              className={`${
-                m.role === "user"
-                  ? "bg-[var(--color-brand)] text-white"
-                  : "bg-white/80 dark:bg-gray-900/40 text-gray-900 dark:text-gray-100 border border-white/40 dark:border-white/10"
-              } max-w-[80%] rounded-2xl px-4 py-2 shadow break-words`}
-            >
-              {m.role === "assistant" && m.speechContent && !enableAudio ? (
-                <>
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    urlTransform={(value) => value}
-                    components={{
-                      p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
-                      ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
-                      ol: (props) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
-                      li: (props) => <li className="leading-relaxed" {...props} />,
-                      a: (props) => (
-                        <a
-                          className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
-                          rel="noopener noreferrer"
-                          target="_blank"
-                          {...props}
-                        />
-                      ),
-                      img: ({ src, alt, ...props }) => (
-                        <img
-                          src={src}
-                          alt={alt || "Generated image"}
-                          className="max-w-full h-auto rounded-lg my-2 border border-white/20 dark:border-white/10"
-                          loading="lazy"
-                          {...props}
-                        />
-                      ),
-                      strong: (props) => <strong className="font-semibold" {...props} />,
-                      em: (props) => <em className="italic" {...props} />,
-                      code: ({ children, ...props }) => (
-                        <code
-                          className={`${m.role === "user" ? "bg-white/20 text-white" : "bg-black/10 dark:bg-white/10 text-inherit"} rounded px-1 py-0.5 font-mono text-[0.9em]`}
-                          {...props}
-                        >
-                          {children}
-                        </code>
-                      ),
-                      pre: (props) => (
-                        <pre className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
-                      ),
-                      blockquote: (props) => (
-                        <blockquote className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`} {...props} />
-                      ),
-                      hr: (props) => <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />,
-                      table: (props) => (
-                        <div className="overflow-x-auto my-2">
-                          <table className="table-auto border-collapse text-sm" {...props} />
-                        </div>
-                      ),
-                      th: (props) => <th className="border px-2 py-1" {...props} />,
-                      td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
-                    }}
-                  >
-                    {convertMathDelimiters(m.speechContent)}
-                  </ReactMarkdown>
-                  {m.content && m.content !== m.speechContent && (
+        <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+          {messages.map((m) => {
+            const isNewMessage = !animatedMessagesRef.current.has(m.id);
+            if (isNewMessage) {
+              animatedMessagesRef.current.add(m.id);
+            }
+            
+            return (
+              <div
+                key={m.id}
+                className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                style={isNewMessage ? { animation: "fade-in-message 0.3s ease-out" } : undefined}
+              >
+                {/* Avatar for assistant */}
+                {m.role === "assistant" && (
+                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                  </div>
+                )}
+
+                {/* Message bubble */}
+                <div
+                  className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-4 py-3 ${
+                    m.role === "user"
+                      ? "bg-indigo-500 text-white"
+                      : "bg-zinc-800/80 text-zinc-100 border border-zinc-700/50"
+                  }`}
+                >
+                  {m.role === "assistant" && m.speechContent && !enableAudio ? (
                     <>
-                      <hr className="my-3 border-black/10 dark:border-white/10" />
+                      <div className="prose prose-invert prose-sm max-w-none">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          urlTransform={(value) => value}
+                          components={markdownComponents(m.role)}
+                        >
+                          {convertMathDelimiters(m.speechContent)}
+                        </ReactMarkdown>
+                      </div>
+                      {m.content && m.content !== m.speechContent && (
+                        <>
+                          <hr className="my-3 border-zinc-700" />
+                          <div className="prose prose-invert prose-sm max-w-none">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[rehypeKatex]}
+                              urlTransform={(value) => value}
+                              components={markdownComponents(m.role)}
+                            >
+                              {convertMathDelimiters(m.content)}
+                            </ReactMarkdown>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div className="prose prose-invert prose-sm max-w-none">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[rehypeKatex]}
                         urlTransform={(value) => value}
-                        components={{
-                          p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
-                          ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
-                          ol: (props) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
-                          li: (props) => <li className="leading-relaxed" {...props} />,
-                          a: (props) => (
-                            <a
-                              className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
-                              rel="noopener noreferrer"
-                              target="_blank"
-                              {...props}
-                            />
-                          ),
-                          img: ({ src, alt, ...props }) => (
-                            <img
-                              src={src}
-                              alt={alt || "Generated image"}
-                              className="max-w-full h-auto rounded-lg my-2 border border-white/20 dark:border-white/10"
-                              loading="lazy"
-                              {...props}
-                            />
-                          ),
-                          strong: (props) => <strong className="font-semibold" {...props} />,
-                          em: (props) => <em className="italic" {...props} />,
-                          code: ({ children, ...props }) => (
-                            <code
-                              className={`${m.role === "user" ? "bg-white/20 text-white" : "bg-black/10 dark:bg-white/10 text-inherit"} rounded px-1 py-0.5 font-mono text-[0.9em]`}
-                              {...props}
-                            >
-                              {children}
-                            </code>
-                          ),
-                          pre: (props) => (
-                            <pre className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
-                          ),
-                          blockquote: (props) => (
-                            <blockquote className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`} {...props} />
-                          ),
-                          hr: (props) => <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />,
-                          table: (props) => (
-                            <div className="overflow-x-auto my-2">
-                              <table className="table-auto border-collapse text-sm" {...props} />
-                            </div>
-                          ),
-                          th: (props) => <th className="border px-2 py-1" {...props} />,
-                          td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
-                        }}
+                        components={markdownComponents(m.role)}
                       >
                         {convertMathDelimiters(m.content)}
                       </ReactMarkdown>
-                    </>
+                    </div>
                   )}
-                </>
-              ) : (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-                  urlTransform={(value) => value}
-                  components={{
-                    p: (props) => <p className="mb-2 leading-relaxed" {...props} />,
-                    ul: (props) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
-                    ol: (props) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
-                    li: (props) => <li className="leading-relaxed" {...props} />,
-                    a: (props) => (
-                      <a
-                        className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                        {...props}
-                      />
-                    ),
-                    img: ({ src, alt, ...props }) => (
-                      <img
-                        src={src}
-                        alt={alt || "Generated image"}
-                        className="max-w-full h-auto rounded-lg my-2 border border-white/20 dark:border-white/10"
-                        loading="lazy"
-                        {...props}
-                      />
-                    ),
-                    strong: (props) => <strong className="font-semibold" {...props} />,
-                    em: (props) => <em className="italic" {...props} />,
-                    code: ({ children, ...props }) => (
-                      <code
-                        className={`${m.role === "user" ? "bg-white/20 text-white" : "bg-black/10 dark:bg-white/10 text-inherit"} rounded px-1 py-0.5 font-mono text-[0.9em]`}
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    ),
-                    pre: (props) => (
-                      <pre className={`${m.role === "user" ? "bg-white/15" : "bg-black/5 dark:bg-white/5"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
-                    ),
-                    blockquote: (props) => (
-                      <blockquote className={`${m.role === "user" ? "border-white/40" : "border-black/20 dark:border-white/20"} border-l-2 pl-3 my-2 italic`} {...props} />
-                    ),
-                    hr: (props) => <hr className={`${m.role === "user" ? "border-white/20" : "border-black/10 dark:border-white/10"} my-3`} {...props} />,
-                    table: (props) => (
-                      <div className="overflow-x-auto my-2">
-                        <table className="table-auto border-collapse text-sm" {...props} />
-                      </div>
-                    ),
-                    th: (props) => <th className="border px-2 py-1" {...props} />,
-                    td: (props) => <td className="border px-2 py-1 align-top" {...props} />,
-                  }}
-                >
-                  {convertMathDelimiters(m.content)}
-                </ReactMarkdown>
-              )}
-            </div>
+                </div>
 
-            {m.role === "assistant" && m.content && enableAudio && (
-            <PlayTTS
-              text={m.speechContent || m.content}
-              className="px-2 py-1 rounded bg-blue-600 text-white text-sm self-start"
-              playbackRate={playbackRate}
-            />
-            )}
-          </div>
-        );
-        })}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white/80 dark:bg-gray-900/40 text-gray-900 dark:text-gray-100 border border-white/40 dark:border-white/10 max-w-[80%] rounded-2xl px-4 py-2 shadow">
-              Thinking…
+                {/* Play button for assistant messages */}
+                {m.role === "assistant" && m.content && enableAudio && (
+                  <PlayTTS
+                    text={m.speechContent || m.content}
+                    className="flex-shrink-0 p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors self-start"
+                    playbackRate={playbackRate}
+                  />
+                )}
+
+                {/* Avatar for user */}
+                {m.role === "user" && (
+                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Loading indicator */}
+          {isLoading && (
+            <div className="flex gap-3 justify-start">
+              <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <div className="bg-zinc-800/80 border border-zinc-700/50 rounded-2xl px-4 py-3">
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
             </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
+          )}
+
+          <div ref={bottomRef} />
+        </div>
       </div>
     </div>
   );
 }
 
-
+// Markdown components for rendering
+function markdownComponents(role: "user" | "assistant") {
+  const isUser = role === "user";
+  return {
+    p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+    ul: (props: React.HTMLAttributes<HTMLUListElement>) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
+    ol: (props: React.HTMLAttributes<HTMLOListElement>) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
+    li: (props: React.HTMLAttributes<HTMLLIElement>) => <li className="leading-relaxed" {...props} />,
+    a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+      <a
+        className={isUser ? "text-white underline" : "text-indigo-400 hover:text-indigo-300 underline"}
+        rel="noopener noreferrer"
+        target="_blank"
+        {...props}
+      />
+    ),
+    img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+      <img
+        src={src}
+        alt={alt || "Generated image"}
+        className="max-w-full h-auto rounded-lg my-2 border border-zinc-700"
+        loading="lazy"
+        {...props}
+      />
+    ),
+    strong: (props: React.HTMLAttributes<HTMLElement>) => <strong className="font-semibold" {...props} />,
+    em: (props: React.HTMLAttributes<HTMLElement>) => <em className="italic" {...props} />,
+    code: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => (
+      <code
+        className={`${isUser ? "bg-white/20" : "bg-zinc-900"} rounded px-1.5 py-0.5 font-mono text-[0.9em]`}
+        {...props}
+      >
+        {children}
+      </code>
+    ),
+    pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
+      <pre className={`${isUser ? "bg-white/15" : "bg-zinc-900"} overflow-x-auto rounded-lg p-3 my-2`} {...props} />
+    ),
+    blockquote: (props: React.HTMLAttributes<HTMLQuoteElement>) => (
+      <blockquote className={`${isUser ? "border-white/40" : "border-zinc-600"} border-l-2 pl-3 my-2 italic`} {...props} />
+    ),
+    hr: (props: React.HTMLAttributes<HTMLHRElement>) => <hr className="border-zinc-700 my-3" {...props} />,
+    table: (props: React.HTMLAttributes<HTMLTableElement>) => (
+      <div className="overflow-x-auto my-2">
+        <table className="table-auto border-collapse text-sm" {...props} />
+      </div>
+    ),
+    th: (props: React.HTMLAttributes<HTMLTableCellElement>) => <th className="border border-zinc-700 px-2 py-1" {...props} />,
+    td: (props: React.HTMLAttributes<HTMLTableCellElement>) => <td className="border border-zinc-700 px-2 py-1 align-top" {...props} />,
+  };
+}

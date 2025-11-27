@@ -8,8 +8,6 @@ export default function AccentColorLoader() {
       const savedColor = localStorage.getItem("accent_color");
       if (savedColor && /^#[0-9A-Fa-f]{6}$/i.test(savedColor)) {
         document.documentElement.style.setProperty("--color-brand", savedColor);
-        document.documentElement.style.setProperty("--color-accent-1", savedColor);
-        document.documentElement.style.setProperty("--color-accent-2", savedColor);
         document.documentElement.style.setProperty("--color-ring", savedColor);
       }
     } catch {
@@ -19,4 +17,3 @@ export default function AccentColorLoader() {
 
   return null;
 }
-

@@ -2,25 +2,60 @@
 
 @theme {
   --default-transition-duration: 150ms;
-  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-open-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
 }
 
 @variant dark (.dark &);
 
-/* Ensure the root html background matches the current theme */
+/* Modern dark-first design system */
+:root {
+  --color-brand: #6366f1;           /* Vibrant indigo */
+  --color-brand-light: #818cf8;
+  --color-brand-dark: #4f46e5;
+  --color-accent: #22d3ee;          /* Cyan accent */
+  --color-surface: #18181b;         /* zinc-900 */
+  --color-surface-elevated: #27272a; /* zinc-800 */
+  --color-surface-hover: #3f3f46;   /* zinc-700 */
+  --color-border: #3f3f46;          /* zinc-700 */
+  --color-border-subtle: #27272a;   /* zinc-800 */
+  --color-text: #fafafa;            /* zinc-50 */
+  --color-text-secondary: #a1a1aa;  /* zinc-400 */
+  --color-text-muted: #71717a;      /* zinc-500 */
+  --color-ring: #6366f1;
+  --color-success: #22c55e;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+}
+
 html {
-  @apply bg-white;
+  background-color: #09090b; /* zinc-950 */
 }
 
 html.dark {
-  @apply bg-gray-900;
+  background-color: #09090b;
 }
 
-/* Page transition keyframes */
+/* Light mode overrides */
+html:not(.dark) {
+  --color-brand: #6366f1;
+  --color-brand-light: #818cf8;
+  --color-brand-dark: #4f46e5;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f4f4f5;  /* zinc-100 */
+  --color-surface-hover: #e4e4e7;     /* zinc-200 */
+  --color-border: #e4e4e7;            /* zinc-200 */
+  --color-border-subtle: #f4f4f5;     /* zinc-100 */
+  --color-text: #09090b;              /* zinc-950 */
+  --color-text-secondary: #52525b;    /* zinc-600 */
+  --color-text-muted: #71717a;        /* zinc-500 */
+  background-color: #fafafa;
+}
+
+/* Smooth animations */
 @keyframes fade-in-up {
-  0% { opacity: 0; transform: translateY(16px) scale(0.98); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fade-in {
@@ -31,7 +66,7 @@ html.dark {
 @keyframes fade-in-message {
   0% { 
     opacity: 0; 
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   100% { 
     opacity: 1; 
@@ -39,73 +74,85 @@ html.dark {
   }
 }
 
-/* Subtle floating animation for hero visual */
-@keyframes float-slow {
-  0% { transform: translateY(0) }
-  100% { transform: translateY(-8px) }
+@keyframes slide-up {
+  0% { opacity: 0; transform: translateY(100%); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
-/* Purple sage palette variables */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-brand) 0%, var(--color-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card surface styles */
+.surface {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.surface-elevated {
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+}
+
+/* Minimal scrollbars */
 :root {
-  --color-brand: #9B5DE5;        /* playful purple */
-  --color-accent-1: var(--color-brand);
-  --color-accent-2: var(--color-brand);
-  --color-bg-start: #F7F5FA;     /* lilac mist */
-  --color-bg-mid: #F3F6F3;       /* sage haze */
-  --color-bg-end: #F6F4F8;       /* violet veil */
-  --color-ring: #9B5DE5;         /* focus ring base */
+  --scrollbar-thumb: #3f3f46;
+  --scrollbar-track: transparent;
 }
 
-html.dark {
-  --color-brand: #C89BFF;        /* playful purple (lightened) */
-  --color-accent-1: var(--color-brand);
-  --color-accent-2: var(--color-brand);
-  --color-bg-start: #0C0B10;     /* deep plum-black */
-  --color-bg-mid: #0E1110;       /* charcoal-sage */
-  --color-bg-end: #0C0B10;       /* deep plum-black */
-  --color-ring: #C89BFF;         /* focus ring base */
+html:not(.dark) {
+  --scrollbar-thumb: #d4d4d8;
+  --scrollbar-track: transparent;
 }
 
-/* Themed scrollbars (Firefox + WebKit) */
-:root {
-  --scrollbar-thumb: color-mix(in oklab, var(--color-brand) 70%, black 10%);
-  --scrollbar-track: color-mix(in oklab, var(--color-bg-mid) 70%, transparent 30%);
-}
-
-html.dark {
-  --scrollbar-thumb: color-mix(in oklab, var(--color-brand) 85%, white 5%);
-  --scrollbar-track: rgba(255, 255, 255, 0.08);
-}
-
-/* Firefox */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-/* WebKit (Chrome, Edge, Safari) */
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 *::-webkit-scrollbar-track {
   background: var(--scrollbar-track);
-  border-radius: 9999px;
 }
 
 *::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb);
   border-radius: 9999px;
-  background-clip: padding-box;
-  border: 2px solid transparent;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in oklab, var(--color-brand) 90%, black 10%);
+  background-color: var(--color-text-muted);
 }
 
-*::-webkit-scrollbar-corner {
-  background: var(--scrollbar-track);
+/* Focus ring utility */
+.focus-ring {
+  outline: none;
 }
 
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for interactive elements */
+button, a, input, textarea, select {
+  transition: all 150ms ease;
+}
