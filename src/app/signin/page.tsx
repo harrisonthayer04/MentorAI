@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import SignInButton from "../components/SignInButton";
 
 export default async function SignInPage() {
@@ -56,7 +57,7 @@ export default async function SignInPage() {
 
           {/* Back link */}
           <div className="mt-6 text-center">
-            <a 
+            <Link 
               href="/" 
               className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors inline-flex items-center gap-2"
             >
@@ -65,7 +66,7 @@ export default async function SignInPage() {
                 <polyline points="12 19 5 12 12 5" />
               </svg>
               Back to home
-            </a>
+            </Link>
           </div>
         </div>
       </div>

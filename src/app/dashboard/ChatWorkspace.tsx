@@ -127,6 +127,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const currentLogCount = useMemo(() => {
     if (!threadId) return 0;
     return debugLogsRef.current.get(threadId)?.length ?? 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, debugLogVersion]);
 
   const handleDownloadLogs = useCallback(() => {
@@ -153,7 +154,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [threadId, currentLogCount]);
+  }, [threadId]);
 
   // Sync debug mode preference from Settings/localStorage
   useEffect(() => {
@@ -209,7 +210,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     } catch {}
   }, [threadId]);
 
-  const sendMessage = async (messageText?: string) => {
+  const sendMessage = useCallback(async (messageText?: string) => {
     if (isLoading) return;
     const text = (messageText ?? inputValue).trim();
     if (!text) return;
@@ -308,7 +309,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isLoading, inputValue, threadId, addLocalDebugEntry, modelId, imageModelId, messages, debugMode, appendDebugLogs]);
 
   const sendForTranscription = useCallback(async (audioBlob: Blob) => {
     try {
@@ -1082,7 +1083,9 @@ function markdownComponents(role: "user" | "assistant") {
         {...props}
       />
     ),
+    // eslint-disable-next-line @next/next/no-img-element
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt={alt || "Generated image"}
