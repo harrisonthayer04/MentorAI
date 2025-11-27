@@ -493,7 +493,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
       {/* Input Area */}
       <div className="flex-shrink-0 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 backdrop-blur-sm">
-        <div className="max-w-3xl mx-auto p-4">
+        <div className="px-4 md:px-8 lg:px-12 py-4">
           {/* Settings toggle row */}
           <div className="flex items-center justify-between mb-3">
             <button
@@ -952,7 +952,7 @@ function ChatPanel({
           setIsAtBottom(distanceFromBottom < 48);
         }}
       >
-        <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        <div className="px-4 md:px-8 lg:px-12 py-6 space-y-6">
           {messages.map((m) => {
             const isNewMessage = !animatedMessagesRef.current.has(m.id);
             if (isNewMessage) {
@@ -976,7 +976,7 @@ function ChatPanel({
 
                 {/* Message bubble */}
                 <div
-                  className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-4 py-3 ${
+                  className={`max-w-[90%] md:max-w-[85%] lg:max-w-[80%] rounded-2xl px-4 py-3 ${
                     m.role === "user"
                       ? "text-white"
                       : "bg-[var(--color-surface-elevated)]/80 text-[var(--color-text)] border border-[var(--color-border)]/50"
