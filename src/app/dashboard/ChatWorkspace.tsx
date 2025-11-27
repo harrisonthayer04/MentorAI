@@ -959,6 +959,15 @@ function ChatPanel({
                           {...props}
                         />
                       ),
+                      img: ({ src, alt, ...props }) => (
+                        <img
+                          src={src}
+                          alt={alt || "Generated image"}
+                          className="max-w-full h-auto rounded-lg my-2 border border-white/20 dark:border-white/10"
+                          loading="lazy"
+                          {...props}
+                        />
+                      ),
                       strong: (props) => <strong className="font-semibold" {...props} />,
                       em: (props) => <em className="italic" {...props} />,
                       code: ({ children, ...props }) => (
@@ -1003,6 +1012,15 @@ function ChatPanel({
                               className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
                               rel="noopener noreferrer"
                               target="_blank"
+                              {...props}
+                            />
+                          ),
+                          img: ({ src, alt, ...props }) => (
+                            <img
+                              src={src}
+                              alt={alt || "Generated image"}
+                              className="max-w-full h-auto rounded-lg my-2 border border-white/20 dark:border-white/10"
+                              loading="lazy"
                               {...props}
                             />
                           ),
@@ -1051,6 +1069,15 @@ function ChatPanel({
                         className={`${m.role === "user" ? "text-white underline" : "text-blue-700 dark:text-blue-400 underline"} break-words`}
                         rel="noopener noreferrer"
                         target="_blank"
+                        {...props}
+                      />
+                    ),
+                    img: ({ src, alt, ...props }) => (
+                      <img
+                        src={src}
+                        alt={alt || "Generated image"}
+                        className="max-w-full h-auto rounded-lg my-2 border border-white/20 dark:border-white/10"
+                        loading="lazy"
                         {...props}
                       />
                     ),
