@@ -15,6 +15,31 @@ type ToolMessage = { role: "tool"; content: string; tool_call_id: string; name?:
 type OpenAIMessage = IncomingMessage | AssistantMessageWithToolCalls | AssistantMessageWithFunctionCall | ToolMessage;
 type ChoiceMessage = Partial<AssistantMessageWithToolCalls & AssistantMessageWithFunctionCall> & { content?: unknown };
 type ToolResult = { ok: boolean; error?: string };
+type DebugLogEntry = { timestamp: string; scope: string; detail: string };
+
+const MAX_DEBUG_DETAIL_LENGTH = 4000;
+
+function formatDebugDetail(value: unknown): string {
+  if (typeof value === "string") {
+    return value.length > MAX_DEBUG_DETAIL_LENGTH
+      ? `${value.slice(0, MAX_DEBUG_DETAIL_LENGTH)}…[truncated]`
+      : value;
+  }
+  try {
+    const serialized = JSON.stringify(value, null, 2);
+    if (typeof serialized === "string") {
+      return serialized.length > MAX_DEBUG_DETAIL_LENGTH
+        ? `${serialized.slice(0, MAX_DEBUG_DETAIL_LENGTH)}…[truncated]`
+        : serialized;
+    }
+  } catch {
+    // fall through to generic stringification
+  }
+  const fallback = String(value);
+  return fallback.length > MAX_DEBUG_DETAIL_LENGTH
+    ? `${fallback.slice(0, MAX_DEBUG_DETAIL_LENGTH)}…[truncated]`
+    : fallback;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -230,27 +255,48 @@ Example response:
 }
 
 export async function POST(req: Request) {
+  let debugEnabled = false;
+  const debugLog: DebugLogEntry[] = [];
+  const pushDebug = (scope: string, detail: unknown) => {
+    if (!debugEnabled) return;
+    debugLog.push({
+      timestamp: new Date().toISOString(),
+      scope,
+      detail: formatDebugDetail(detail),
+    });
+  };
+  const respond = (body: Record<string, unknown>, status = 200) => {
+    return NextResponse.json(debugEnabled ? { ...body, debugLog } : body, { status });
+  };
+
   try {
     const session = await getServerSession(authOptions);
     const userId = (session?.user as { id?: string } | undefined)?.id;
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return respond({ error: "Unauthorized" }, 401);
 
-    const { modelId, imageModelId, messages, conversationId } = (await req.json()) as {
+    const { modelId, imageModelId, messages, conversationId, debug } = (await req.json()) as {
       modelId?: string;
       imageModelId?: string;
       messages?: IncomingMessage[];
       conversationId?: string;
+      debug?: boolean;
     };
+    debugEnabled = Boolean(debug);
+    pushDebug("request_init", {
+      conversationId: conversationId ?? "unknown",
+      modelId,
+      imageModelId,
+    });
+    pushDebug("messages_payload", messages ?? []);
 
     if (!process.env.OPENROUTER_API_KEY) {
-      return NextResponse.json(
-        { error: "Server missing OPENROUTER_API_KEY" },
-        { status: 500 }
-      );
+      pushDebug("configuration_error", "Server missing OPENROUTER_API_KEY");
+      return respond({ error: "Server missing OPENROUTER_API_KEY" }, 500);
     }
 
     if (!modelId || !messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      pushDebug("validation_error", "Invalid payload");
+      return respond({ error: "Invalid payload" }, 400);
     }
 
     const model = MODEL_SLUGS[modelId] ?? modelId;
@@ -268,9 +314,12 @@ export async function POST(req: Request) {
       conversationId,
       memories,
     });
+    pushDebug("memories_loaded", { count: memories.length });
+    pushDebug("system_prompt", systemPrompt);
 
     // Resolve image model slug
     const imageModel = imageModelId ? (IMAGE_MODEL_SLUGS[imageModelId] ?? imageModelId) : "google/gemini-2.5-flash-image";
+    pushDebug("models_resolved", { chatModel: model, imageModel });
 
     // Define tools for the model to call
     const tools = [
@@ -336,6 +385,10 @@ export async function POST(req: Request) {
 
     // Tool loop (bounded)
     for (let i = 0; i < 3; i++) {
+      pushDebug("llm_iteration_start", {
+        iteration: i + 1,
+        convoMessagesCount: convoMessages.length,
+      });
       const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -352,14 +405,17 @@ export async function POST(req: Request) {
           temperature: 0.2,
         }),
       });
+      pushDebug("llm_http_status", { iteration: i + 1, status: resp.status });
 
       if (!resp.ok) {
         const text = await resp.text();
-        return NextResponse.json({ error: text }, { status: 502 });
+        pushDebug("llm_error", { iteration: i + 1, status: resp.status, body: text });
+        return respond({ error: text }, 502);
       }
 
       const data = await resp.json();
       const msg = (data?.choices?.[0]?.message ?? {}) as ChoiceMessage;
+      pushDebug("llm_message", msg);
       const toolCalls: ToolCall[] =
         (msg?.tool_calls as ToolCall[] | undefined) ??
         (msg?.function_call
@@ -367,6 +423,10 @@ export async function POST(req: Request) {
           : []);
 
       if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+        pushDebug(
+          "tool_calls_detected",
+          toolCalls.map((tc) => ({ id: tc?.id, name: tc?.function?.name }))
+        );
         // Append the assistant message that initiated the tool calls so the provider
         // can associate subsequent tool outputs with these call ids.
         if (msg?.tool_calls) {
@@ -386,6 +446,11 @@ export async function POST(req: Request) {
 
         for (const tc of toolCalls) {
           const name = tc?.function?.name as string | undefined;
+          pushDebug("tool_call", {
+            id: tc?.id,
+            name,
+            rawArguments: tc?.function?.arguments ?? "{}",
+          });
           let args: unknown = {};
           try {
             args = JSON.parse(tc?.function?.arguments ?? "{}");
@@ -438,6 +503,11 @@ export async function POST(req: Request) {
                 
                 const isDiffusionModel = DIFFUSION_MODELS.has(imageModel);
                 console.log(`[generate_image] Model type: ${isDiffusionModel ? "diffusion" : "multimodal-chat"}`);
+                pushDebug("generate_image_request", {
+                  prompt,
+                  imageModel,
+                  mode: isDiffusionModel ? "diffusion" : "multimodal",
+                });
                 
                 let imageUrl = "";
                 
@@ -462,10 +532,12 @@ export async function POST(req: Request) {
                   });
 
                   console.log(`[generate_image] Response status: ${imageResp.status}`);
+                  pushDebug("generate_image_status", { status: imageResp.status, model: imageModel });
 
                   if (!imageResp.ok) {
                     const errorText = await imageResp.text();
                     console.error(`[generate_image] API error: ${errorText}`);
+                    pushDebug("generate_image_error", errorText);
                     result = { ok: false, error: `Image generation failed: ${errorText}` };
                   } else {
                     const imageData = await imageResp.json();
@@ -489,9 +561,11 @@ export async function POST(req: Request) {
                     if (imageUrl) {
                       const urlPreview = imageUrl.length > 100 ? `${imageUrl.substring(0, 100)}...` : imageUrl;
                       console.log(`[generate_image] SUCCESS! Image URL: ${urlPreview}`);
+                      pushDebug("generate_image_success", imageUrl);
                       result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
                     } else {
                       console.error(`[generate_image] FAILED: No image URL found in diffusion response`);
+                      pushDebug("generate_image_error", "No image URL in diffusion response");
                       result = { ok: false, error: "No image URL in response. Check server logs." };
                     }
                   }
@@ -521,10 +595,12 @@ export async function POST(req: Request) {
                   });
 
                   console.log(`[generate_image] Response status: ${imageResp.status}`);
+                  pushDebug("generate_image_status", { status: imageResp.status, model: imageModel });
 
                   if (!imageResp.ok) {
                     const errorText = await imageResp.text();
                     console.error(`[generate_image] API error: ${errorText}`);
+                    pushDebug("generate_image_error", errorText);
                     result = { ok: false, error: `Image generation failed: ${errorText}` };
                   } else {
                     const imageData = await imageResp.json();
@@ -634,10 +710,12 @@ export async function POST(req: Request) {
                     if (imageUrl) {
                       const urlPreview = imageUrl.length > 100 ? `${imageUrl.substring(0, 100)}...` : imageUrl;
                       console.log(`[generate_image] SUCCESS! Image URL: ${urlPreview}`);
+                      pushDebug("generate_image_success", imageUrl);
                       result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
                     } else {
                       console.error(`[generate_image] FAILED: No image URL found in multimodal response`);
                       console.error(`[generate_image] Response keys: ${Object.keys(imageData || {}).join(", ")}`);
+                      pushDebug("generate_image_error", "No image URL found in multimodal response");
                       result = { ok: false, error: "No image URL in response. Check server logs." };
                     }
                   }
@@ -648,6 +726,12 @@ export async function POST(req: Request) {
             const message = e instanceof Error ? e.message : "tool error";
             result = { ok: false, error: message };
           }
+
+          pushDebug(result.ok ? "tool_result" : "tool_error", {
+            id: tc?.id,
+            name,
+            result,
+          });
 
           // Provide tool result back to the model
           convoMessages.push({
@@ -666,6 +750,11 @@ export async function POST(req: Request) {
       const parsed = parseResponseContent(finalContent);
       finalSpeechContent = parsed.speech;
       finalDisplayContent = parsed.display;
+      pushDebug("assistant_response", {
+        speech: finalSpeechContent,
+        display: finalDisplayContent,
+        raw: finalContent,
+      });
       break;
     }
 
@@ -681,6 +770,7 @@ export async function POST(req: Request) {
             speechContent: finalSpeechContent || null
           },
         });
+        pushDebug("assistant_persisted", { conversationId, persisted: true });
         await prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
 
         // Check if we should consolidate memories
@@ -693,21 +783,28 @@ export async function POST(req: Request) {
         
         if (shouldConsolidate && memories.length >= 2) {
           console.log(`[Memory Consolidation] Triggering for user ${userId} - ${messageCount} messages, ${memories.length} memories`);
+          pushDebug("memory_consolidation_trigger", { conversationId, messageCount });
           // Run consolidation asynchronously (don't await - don't block response)
           consolidateMemories(userId, memories, process.env.OPENROUTER_API_KEY!).catch((err) => {
             console.error("Background memory consolidation error:", err);
           });
         }
+      } else {
+        pushDebug("assistant_persisted", { conversationId, persisted: false });
       }
     }
 
-    return NextResponse.json({ 
+    pushDebug("response_ready", {
+      contentPreview: (finalDisplayContent || finalContent || "").slice(0, 200),
+    });
+    return respond({
       content: finalDisplayContent || finalContent,
-      speechContent: finalSpeechContent || finalDisplayContent || finalContent
+      speechContent: finalSpeechContent || finalDisplayContent || finalContent,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    pushDebug("error", message);
+    return respond({ error: message }, 500);
   }
 }
 

@@ -34,6 +34,7 @@ export default function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; on
   const [newContent, setNewContent] = useState<string>("");
   const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
   const [accentColor, setAccentColor] = useState<string>(DEFAULT_ACCENT_COLOR);
+  const [debugModeEnabled, setDebugModeEnabled] = useState<boolean>(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -78,6 +79,13 @@ export default function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; on
       } catch {
         // ignore
       }
+      // Load debug preference
+      try {
+        const storedDebug = localStorage.getItem("bm_debug_mode");
+        setDebugModeEnabled(storedDebug === "true");
+      } catch {
+        // ignore
+      }
     }
   }, [isOpen]);
 
@@ -88,6 +96,22 @@ export default function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; on
       localStorage.setItem("accent_color", color);
     } catch {
       // ignore
+    }
+  };
+
+  const handleDebugToggle = (enabled: boolean) => {
+    setDebugModeEnabled(enabled);
+    try {
+      localStorage.setItem("bm_debug_mode", String(enabled));
+    } catch {
+      // ignore
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("bm_debug_mode_changed", {
+          detail: { enabled },
+        })
+      );
     }
   };
 
@@ -316,6 +340,37 @@ export default function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; on
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Debug Section */}
+          <div className="rounded-2xl bg-white/70 dark:bg-white/10 backdrop-blur border border-white/40 dark:border-white/10 shadow p-6">
+            <h2 className="text-lg font-display font-semibold text-gray-900 dark:text-white">Debug tools</h2>
+            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+              Enable verbose logging to download chat transcripts with tool calls and errors.
+            </p>
+            <div className="mt-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Debug logging</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  When enabled, the chat panel shows a “Download logs” button with full timelines.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={debugModeEnabled}
+                onClick={() => handleDebugToggle(!debugModeEnabled)}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                  debugModeEnabled ? "bg-[var(--color-brand)]" : "bg-gray-300 dark:bg-gray-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
+                    debugModeEnabled ? "translate-x-5" : "translate-x-1"
+                  }`}
+                />
+              </button>
             </div>
           </div>
 

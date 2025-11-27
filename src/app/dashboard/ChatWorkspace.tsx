@@ -16,17 +16,52 @@ type ChatMessage = {
   optimistic?: boolean;
 };
 
-function parseChatApiResponse(payload: unknown): { content: string | null; speechContent: string | null; error: string | null } {
+type DebugLogEntry = {
+  timestamp: string;
+  scope: string;
+  detail: string;
+};
+
+function normalizeDebugLog(raw: unknown): DebugLogEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => {
+      if (
+        entry &&
+        typeof entry === "object" &&
+        typeof (entry as { timestamp?: unknown }).timestamp === "string" &&
+        typeof (entry as { scope?: unknown }).scope === "string" &&
+        typeof (entry as { detail?: unknown }).detail === "string"
+      ) {
+        return {
+          timestamp: (entry as { timestamp: string }).timestamp,
+          scope: (entry as { scope: string }).scope,
+          detail: (entry as { detail: string }).detail,
+        };
+      }
+      return null;
+    })
+    .filter((entry): entry is DebugLogEntry => Boolean(entry));
+}
+
+function parseChatApiResponse(payload: unknown): {
+  content: string | null;
+  speechContent: string | null;
+  error: string | null;
+  debugLog: DebugLogEntry[];
+} {
   if (typeof payload !== "object" || payload === null) {
-    return { content: null, speechContent: null, error: null };
+    return { content: null, speechContent: null, error: null, debugLog: [] };
   }
   const rawContent = "content" in payload ? (payload as { content?: unknown }).content : undefined;
   const rawSpeechContent = "speechContent" in payload ? (payload as { speechContent?: unknown }).speechContent : undefined;
   const rawError = "error" in payload ? (payload as { error?: unknown }).error : undefined;
+  const rawDebug = "debugLog" in payload ? (payload as { debugLog?: unknown }).debugLog : undefined;
   return {
     content: typeof rawContent === "string" ? rawContent : null,
     speechContent: typeof rawSpeechContent === "string" ? rawSpeechContent : null,
     error: typeof rawError === "string" ? rawError : null,
+    debugLog: normalizeDebugLog(rawDebug),
   };
 }
 
@@ -42,6 +77,9 @@ function parseTranscriptionResponse(payload: unknown): { text: string | null; er
   };
 }
 
+const DEBUG_STORAGE_KEY = "bm_debug_mode";
+const DEBUG_EVENT_NAME = "bm_debug_mode_changed";
+
 export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
   const [modelId, setModelId] = useState<string>("gemini-2.5-flash-lite");
   const [imageModelId, setImageModelId] = useState<string>("google/gemini-2.5-flash-image");
@@ -52,6 +90,10 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [isRecording, setIsRecording] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [autoSendTranscription, setAutoSendTranscription] = useState<boolean>(true);
+  const [debugMode, setDebugMode] = useState<boolean>(false);
+  const debugLogsRef = useRef<Map<string, DebugLogEntry[]>>(new Map());
+  const [debugLogVersion, setDebugLogVersion] = useState<number>(0);
+  const hydratedThreadsRef = useRef<Set<string>>(new Set());
 
   const clampPlaybackRate = useCallback((rate: number) => {
     if (!Number.isFinite(rate)) return 1;
@@ -61,6 +103,101 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const chunksRef = useRef<BlobPart[]>([]);
   const messageCacheRef = useRef<Map<string, ChatMessage[]>>(new Map());
   const stopTTSRef = useRef<(() => void) | null>(null);
+
+  const appendDebugLogs = useCallback(
+    (targetThreadId: string, entries: DebugLogEntry[]) => {
+      if (!targetThreadId || entries.length === 0) return;
+      const existing = debugLogsRef.current.get(targetThreadId) ?? [];
+      debugLogsRef.current.set(targetThreadId, [...existing, ...entries]);
+      setDebugLogVersion((v) => v + 1);
+    },
+    []
+  );
+
+  const addLocalDebugEntry = useCallback(
+    (scope: string, detail: string, conversationOverride?: string) => {
+      const targetId = conversationOverride ?? threadId;
+      if (!debugMode || !targetId) return;
+      appendDebugLogs(targetId, [{ timestamp: new Date().toISOString(), scope, detail }]);
+    },
+    [appendDebugLogs, debugMode, threadId]
+  );
+
+  const currentLogCount = useMemo(() => {
+    if (!threadId) return 0;
+    return debugLogsRef.current.get(threadId)?.length ?? 0;
+  }, [threadId, debugLogVersion]);
+
+  const handleDownloadLogs = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (!threadId) {
+      alert("Select a conversation to download logs.");
+      return;
+    }
+    const logs = debugLogsRef.current.get(threadId);
+    if (!logs || logs.length === 0) {
+      alert("No logs available for this conversation yet.");
+      return;
+    }
+    const lines = logs.map((entry) => {
+      const ts = new Date(entry.timestamp).toLocaleString();
+      return `[${ts}] [${entry.scope}] ${entry.detail}`;
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `mentorai-chat-log-${threadId}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [threadId, currentLogCount]);
+
+  // Sync debug mode preference from Settings/localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const readPreference = () => {
+      try {
+        const stored = localStorage.getItem(DEBUG_STORAGE_KEY);
+        setDebugMode(stored === "true");
+      } catch {
+        setDebugMode(false);
+      }
+    };
+    readPreference();
+    const handleCustom = (event: Event) => {
+      const detail = (event as CustomEvent<{ enabled: boolean }>).detail;
+      if (typeof detail?.enabled === "boolean") {
+        setDebugMode(detail.enabled);
+      }
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === DEBUG_STORAGE_KEY) {
+        readPreference();
+      }
+    };
+    window.addEventListener(DEBUG_EVENT_NAME, handleCustom);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(DEBUG_EVENT_NAME, handleCustom);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  // Hydrate existing messages into the debug log once per thread when debug mode is enabled
+  useEffect(() => {
+    if (!debugMode || !threadId) return;
+    if (hydratedThreadsRef.current.has(threadId)) return;
+    if (messages.length === 0) return;
+    const entries: DebugLogEntry[] = messages.map((m) => ({
+      timestamp: new Date(m.createdAt).toISOString(),
+      scope: m.role === "user" ? "user_message" : "assistant_message",
+      detail: m.content,
+    }));
+    appendDebugLogs(threadId, entries);
+    hydratedThreadsRef.current.add(threadId);
+  }, [appendDebugLogs, debugMode, messages, threadId]);
 
   // Stop TTS when threadId changes (user leaves current chat)
   useEffect(() => {
@@ -78,6 +215,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     const text = (messageText ?? inputValue).trim();
     if (!text) return;
     if (!threadId) return; // can't send without a selected thread
+    const targetThreadId = threadId;
+    addLocalDebugEntry("client", `User message sent: ${text}`, targetThreadId);
     const now = Date.now();
     const tempId = `local_${now}`;
     const userMsg: ChatMessage = { id: tempId, role: "user", content: text, createdAt: now, optimistic: true };
@@ -131,14 +270,19 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
             { role: "user", content: text },
           ],
           conversationId: threadId,
+          debug: debugMode,
         }),
         keepalive: true,
       });
       const payload: unknown = await resp.json();
-      const { content: assistantContent, error: assistantError } = parseChatApiResponse(payload);
+      const { content: assistantContent, error: assistantError, debugLog } = parseChatApiResponse(payload);
+      if (targetThreadId && debugLog.length > 0) {
+        appendDebugLogs(targetThreadId, debugLog);
+      }
       const content = assistantContent ?? assistantError ?? "(no response)";
       // Do not append assistant locally (server will save it). Rely on polling below to render.
       if (assistantError) {
+        addLocalDebugEntry("server_error", assistantError, targetThreadId);
         const aiMsg: ChatMessage = {
           id: `a_${Date.now()}`,
           role: "assistant",
@@ -153,6 +297,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
+      addLocalDebugEntry("client_error", message, targetThreadId);
       const aiMsg: ChatMessage = {
         id: `a_${Date.now()}`,
         role: "assistant",
@@ -383,6 +528,24 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                 <option value="openai/gpt-5-image">GPT-5 Image</option>
                 <option value="black-forest-labs/flux.2-pro">FLUX.2 Pro</option>
               </select>
+              {debugMode && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={handleDownloadLogs}
+                    disabled={!threadId || currentLogCount === 0}
+                    className="w-full rounded-xl border border-dashed border-gray-400/70 dark:border-gray-500/70 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed hover:bg-white/80 dark:hover:bg-gray-900/40 transition-colors"
+                    title={currentLogCount === 0 ? "No debug logs yet" : "Download full chat log"}
+                  >
+                    Download logs
+                  </button>
+                  <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                    {currentLogCount > 0
+                      ? `Ready with ${currentLogCount} entries`
+                      : "Send a message to capture logs"}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Response mode toggle */}
