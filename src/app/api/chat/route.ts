@@ -501,7 +501,26 @@ export async function POST(req: Request) {
                     }
                   }
                   
-                  // Method 3: Check message content
+                  // Method 3: Google/Gemini native format with inline_data
+                  if (!imageUrl) {
+                    const candidates = imageData?.candidates;
+                    if (Array.isArray(candidates) && candidates.length > 0) {
+                      console.log(`[generate_image] Found candidates array (Gemini native format)`);
+                      const parts = candidates[0]?.content?.parts;
+                      if (Array.isArray(parts)) {
+                        for (const part of parts) {
+                          if (part?.inline_data?.data) {
+                            const mimeType = part.inline_data.mime_type || "image/png";
+                            imageUrl = `data:${mimeType};base64,${part.inline_data.data}`;
+                            console.log(`[generate_image] Method 3a: Gemini inline_data format`);
+                            break;
+                          }
+                        }
+                      }
+                    }
+                  }
+                  
+                  // Method 4: Check message content
                   if (!imageUrl) {
                     const imageContent = imageData?.choices?.[0]?.message?.content;
                     console.log(`[generate_image] Checking message.content - type: ${typeof imageContent}`);
@@ -512,25 +531,25 @@ export async function POST(req: Request) {
                       // Check if it's a data URL
                       if (imageContent.startsWith("data:image")) {
                         imageUrl = imageContent.trim();
-                        console.log(`[generate_image] Method 3a: Direct data URL in content`);
+                        console.log(`[generate_image] Method 4a: Direct data URL in content`);
                       } 
                       // Check if it's a direct HTTP URL
                       else if (imageContent.startsWith("http")) {
                         imageUrl = imageContent.trim().split(/\s/)[0]; // Take first URL-like string
-                        console.log(`[generate_image] Method 3b: Direct HTTP URL`);
+                        console.log(`[generate_image] Method 4b: Direct HTTP URL`);
                       }
                       // Try to extract from markdown
                       else {
                         const markdownMatch = imageContent.match(/!\[.*?\]\(((?:https?:\/\/|data:image)[^\s)]+)\)/);
                         if (markdownMatch) {
                           imageUrl = markdownMatch[1];
-                          console.log(`[generate_image] Method 3c: Extracted from markdown`);
+                          console.log(`[generate_image] Method 4c: Extracted from markdown`);
                         } else {
                           // Try to find any image URL
                           const urlMatch = imageContent.match(/(https?:\/\/[^\s"'<>]+)/i);
                           if (urlMatch) {
                             imageUrl = urlMatch[1];
-                            console.log(`[generate_image] Method 3d: Found URL in text`);
+                            console.log(`[generate_image] Method 4d: Found URL in text`);
                           }
                         }
                       }
@@ -543,20 +562,26 @@ export async function POST(req: Request) {
                         // Various multimodal content formats
                         if (part?.type === "image_url" && part?.image_url?.url) {
                           imageUrl = part.image_url.url;
-                          console.log(`[generate_image] Method 3e: content[].image_url.url`);
+                          console.log(`[generate_image] Method 4e: content[].image_url.url`);
                           break;
                         } else if (part?.type === "image" && part?.url) {
                           imageUrl = part.url;
-                          console.log(`[generate_image] Method 3f: content[].url`);
+                          console.log(`[generate_image] Method 4f: content[].url`);
                           break;
                         } else if (part?.type === "image" && part?.source?.data) {
                           const mediaType = part?.source?.media_type || "image/png";
                           imageUrl = `data:${mediaType};base64,${part.source.data}`;
-                          console.log(`[generate_image] Method 3g: content[].source.data (Anthropic format)`);
+                          console.log(`[generate_image] Method 4g: content[].source.data (Anthropic format)`);
                           break;
                         } else if (typeof part?.image_url === "string") {
                           imageUrl = part.image_url;
-                          console.log(`[generate_image] Method 3h: content[].image_url as string`);
+                          console.log(`[generate_image] Method 4h: content[].image_url as string`);
+                          break;
+                        } else if (part?.inline_data?.data) {
+                          // Gemini multimodal content format within choices
+                          const mimeType = part.inline_data.mime_type || "image/png";
+                          imageUrl = `data:${mimeType};base64,${part.inline_data.data}`;
+                          console.log(`[generate_image] Method 4i: content[].inline_data (Gemini format)`);
                           break;
                         }
                       }
@@ -574,6 +599,19 @@ export async function POST(req: Request) {
                       console.error(`[generate_image] Choice keys: ${Object.keys(imageData.choices[0]).join(", ")}`);
                       if (imageData.choices[0].message) {
                         console.error(`[generate_image] Message keys: ${Object.keys(imageData.choices[0].message).join(", ")}`);
+                      }
+                    }
+                    // Check for Gemini native format
+                    if (imageData?.candidates?.[0]) {
+                      console.error(`[generate_image] Candidate keys: ${Object.keys(imageData.candidates[0]).join(", ")}`);
+                      if (imageData.candidates[0].content) {
+                        console.error(`[generate_image] Candidate content keys: ${Object.keys(imageData.candidates[0].content).join(", ")}`);
+                        if (Array.isArray(imageData.candidates[0].content.parts)) {
+                          console.error(`[generate_image] Parts count: ${imageData.candidates[0].content.parts.length}`);
+                          imageData.candidates[0].content.parts.forEach((p: Record<string, unknown>, idx: number) => {
+                            console.error(`[generate_image] Part ${idx} keys: ${Object.keys(p).join(", ")}`);
+                          });
+                        }
                       }
                     }
                     result = { ok: false, error: "No image URL in response. Check server logs for full API response." };
