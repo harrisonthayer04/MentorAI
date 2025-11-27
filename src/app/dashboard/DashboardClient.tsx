@@ -256,10 +256,10 @@ export default function DashboardClient() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
         <aside
-          className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[var(--color-surface-elevated)]/95 dark:bg-zinc-900/95 border-r border-[var(--color-border-subtle)] flex flex-col transition-all duration-200 ease-out overflow-hidden ${
-            isOpen ? "translate-x-0 md:translate-x-0" : "-translate-x-full md:-translate-x-full"
+          className={`fixed left-0 z-40 w-72 bg-[var(--color-surface-elevated)]/95 dark:bg-zinc-900/95 border-r border-[var(--color-border-subtle)] flex flex-col transition-all duration-200 ease-out overflow-hidden ${
+            isOpen ? "translate-x-0" : "-translate-x-full"
           }`}
-          style={{ top: '56px' }}
+          style={{ top: '56px', height: 'calc(100vh - 56px)' }}
         >
           {/* Sidebar Header */}
           <div className="flex-shrink-0 p-4 border-b border-[var(--color-border-subtle)]">
@@ -353,13 +353,13 @@ export default function DashboardClient() {
           </div>
         </aside>
 
-        {/* Overlay for mobile and desktop when sidebar is open */}
+        {/* Overlay when sidebar is open */}
         {isOpen && (
           <button
             aria-label="Close sidebar"
             onClick={() => setIsOpen(false)}
-            className="fixed inset-0 z-30 bg-black/50"
-            style={{ top: '56px' }}
+            className="fixed left-0 right-0 bottom-0 z-30 bg-black/50"
+            style={{ top: '56px', animation: 'overlay-fade-in 0.2s ease-out' }}
           />
         )}
 
