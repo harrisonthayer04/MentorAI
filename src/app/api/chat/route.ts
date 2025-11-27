@@ -382,6 +382,10 @@ export async function POST(req: Request) {
     let finalContent = "";
     let finalSpeechContent = "";
     let finalDisplayContent = "";
+    
+    // Store generated images with placeholder IDs to avoid sending huge base64 data back to the LLM
+    const generatedImages = new Map<string, string>();
+    let imageCounter = 0;
 
     // Tool loop (bounded)
     for (let i = 0; i < 3; i++) {
@@ -561,8 +565,15 @@ export async function POST(req: Request) {
                     if (imageUrl) {
                       const urlPreview = imageUrl.length > 100 ? `${imageUrl.substring(0, 100)}...` : imageUrl;
                       console.log(`[generate_image] SUCCESS! Image URL: ${urlPreview}`);
-                      pushDebug("generate_image_success", imageUrl);
-                      result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
+                      pushDebug("generate_image_success", urlPreview);
+                      
+                      // Store the actual image and use a placeholder to avoid token explosion
+                      imageCounter++;
+                      const placeholderId = `__IMAGE_PLACEHOLDER_${imageCounter}__`;
+                      generatedImages.set(placeholderId, imageUrl);
+                      
+                      // Tell the LLM the image was generated with a placeholder reference
+                      result = { ok: true, imageUrl: placeholderId, note: "Image generated successfully. Use this placeholder in your markdown: ![description](" + placeholderId + ")" } as ToolResult & { imageUrl: string; note: string };
                     } else {
                       console.error(`[generate_image] FAILED: No image URL found in diffusion response`);
                       pushDebug("generate_image_error", "No image URL in diffusion response");
@@ -710,8 +721,15 @@ export async function POST(req: Request) {
                     if (imageUrl) {
                       const urlPreview = imageUrl.length > 100 ? `${imageUrl.substring(0, 100)}...` : imageUrl;
                       console.log(`[generate_image] SUCCESS! Image URL: ${urlPreview}`);
-                      pushDebug("generate_image_success", imageUrl);
-                      result = { ok: true, imageUrl } as ToolResult & { imageUrl: string };
+                      pushDebug("generate_image_success", urlPreview);
+                      
+                      // Store the actual image and use a placeholder to avoid token explosion
+                      imageCounter++;
+                      const placeholderId = `__IMAGE_PLACEHOLDER_${imageCounter}__`;
+                      generatedImages.set(placeholderId, imageUrl);
+                      
+                      // Tell the LLM the image was generated with a placeholder reference
+                      result = { ok: true, imageUrl: placeholderId, note: "Image generated successfully. Use this placeholder in your markdown: ![description](" + placeholderId + ")" } as ToolResult & { imageUrl: string; note: string };
                     } else {
                       console.error(`[generate_image] FAILED: No image URL found in multimodal response`);
                       console.error(`[generate_image] Response keys: ${Object.keys(imageData || {}).join(", ")}`);
@@ -750,10 +768,21 @@ export async function POST(req: Request) {
       const parsed = parseResponseContent(finalContent);
       finalSpeechContent = parsed.speech;
       finalDisplayContent = parsed.display;
+      
+      // Substitute image placeholders with actual image URLs
+      if (generatedImages.size > 0) {
+        for (const [placeholder, actualUrl] of generatedImages) {
+          finalContent = finalContent.replaceAll(placeholder, actualUrl);
+          finalSpeechContent = finalSpeechContent.replaceAll(placeholder, actualUrl);
+          finalDisplayContent = finalDisplayContent.replaceAll(placeholder, actualUrl);
+        }
+        pushDebug("image_placeholders_substituted", { count: generatedImages.size });
+      }
+      
       pushDebug("assistant_response", {
         speech: finalSpeechContent,
         display: finalDisplayContent,
-        raw: finalContent,
+        raw: finalContent.length > 500 ? finalContent.substring(0, 500) + "...[truncated]" : finalContent,
       });
       break;
     }
