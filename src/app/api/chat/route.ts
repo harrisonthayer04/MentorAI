@@ -428,7 +428,8 @@ export async function POST(req: Request) {
                 console.log(`[generate_image] Starting image generation with model: ${imageModel}`);
                 console.log(`[generate_image] Prompt: ${prompt.substring(0, 100)}...`);
                 
-                // Call OpenRouter image generation API
+                // Call OpenRouter image generation API with modalities parameter
+                // The modalities parameter tells OpenRouter we want image output
                 const imageResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                   method: "POST",
                   headers: {
@@ -442,9 +443,12 @@ export async function POST(req: Request) {
                     messages: [
                       {
                         role: "user",
-                        content: prompt,
+                        content: `Generate an image: ${prompt}`,
                       },
                     ],
+                    // Critical: This tells OpenRouter to return image output
+                    modalities: ["image", "text"],
+                    stream: false,
                   }),
                 });
 
