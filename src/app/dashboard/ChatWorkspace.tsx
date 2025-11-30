@@ -879,7 +879,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                     <option value="x-ai/grok-4-fast">Grok 4 Fast</option>
                     <option value="x-ai/grok-code-fast-1">Grok Code Fast 1</option>
                     <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-                    <option value="gemini-3-pro">Gemini 3 Pro</option>
+                    <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
                     <option value="anthropic/claude-opus-4.5">Claude Opus 4.5</option>
                     <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
                     <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5</option>
