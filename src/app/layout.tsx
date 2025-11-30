@@ -2,6 +2,15 @@ import "./globals.css";
 import "katex/dist/katex.min.css";
 import { Plus_Jakarta_Sans, DM_Sans } from 'next/font/google';
 import Providers from './providers';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'MentorAI',
+  description: 'Your AI-powered mentor for learning and growth',
+  icons: {
+    icon: '/favicon.svg',
+  },
+};
 
 // Configure distinctive modern fonts
 const plusJakarta = Plus_Jakarta_Sans({ 

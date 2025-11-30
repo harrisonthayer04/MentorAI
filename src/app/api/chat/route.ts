@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSystemPrompt } from "@/lib/system-prompt";
 
+// Increase timeout for image processing
+export const maxDuration = 60;
+
 // Image content part for vision models
 type ImageContentPart = {
   type: "image_url";

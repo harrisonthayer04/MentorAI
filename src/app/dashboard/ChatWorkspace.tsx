@@ -94,10 +94,54 @@ function parseTranscriptionResponse(payload: unknown): { text: string | null; er
 const DEBUG_STORAGE_KEY = "bm_debug_mode";
 const DEBUG_EVENT_NAME = "bm_debug_mode_changed";
 
-// Maximum file size for images (10MB)
+// Maximum file size for images (10MB original, will be compressed)
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 // Supported image types
 const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+// Target max dimension for compressed images
+const MAX_IMAGE_DIMENSION = 1024;
+// Target quality for JPEG compression
+const IMAGE_QUALITY = 0.8;
+
+// Compress/resize image to reduce payload size
+function compressImage(dataUrl: string, maxDimension: number = MAX_IMAGE_DIMENSION): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      
+      // Calculate new dimensions maintaining aspect ratio
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+      
+      // Create canvas and draw resized image
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Convert to JPEG for better compression (unless it's a GIF which might be animated)
+      const mimeType = dataUrl.startsWith("data:image/gif") ? "image/png" : "image/jpeg";
+      const compressed = canvas.toDataURL(mimeType, IMAGE_QUALITY);
+      resolve(compressed);
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = dataUrl;
+  });
+}
 
 export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
   const [modelId, setModelId] = useState<string>("gemini-2.5-flash-lite");
@@ -316,19 +360,13 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       }
 
       // Build conversation history, converting stored messages to API format
+      // NOTE: We don't include images from old messages to keep payload size manageable
+      // Only the current message will have images
       const historyMessages = messages.map(({ role, content, images }) => {
+        // For messages with images, just include text and a note about the image
         if (images && images.length > 0) {
-          const parts: ContentPart[] = [];
-          if (content) {
-            parts.push({ type: "text", text: content });
-          }
-          for (const imgUrl of images) {
-            parts.push({
-              type: "image_url",
-              image_url: { url: imgUrl, detail: "auto" },
-            });
-          }
-          return { role, content: parts };
+          const imageNote = `[${images.length} image${images.length > 1 ? 's' : ''} attached]`;
+          return { role, content: content ? `${content}\n${imageNote}` : imageNote };
         }
         return { role, content };
       });
@@ -474,17 +512,32 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
       // Read file and convert to base64
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const dataUrl = event.target?.result as string;
         if (dataUrl) {
-          setAttachedImages((prev) => [
-            ...prev,
-            {
-              id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-              dataUrl,
-              name: file.name,
-            },
-          ]);
+          try {
+            // Compress the image to reduce payload size
+            const compressed = await compressImage(dataUrl);
+            setAttachedImages((prev) => [
+              ...prev,
+              {
+                id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                dataUrl: compressed,
+                name: file.name,
+              },
+            ]);
+          } catch (err) {
+            console.error("Failed to compress image:", err);
+            // Fall back to original if compression fails
+            setAttachedImages((prev) => [
+              ...prev,
+              {
+                id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                dataUrl,
+                name: file.name,
+              },
+            ]);
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -518,17 +571,29 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         }
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
           const dataUrl = event.target?.result as string;
           if (dataUrl) {
-            setAttachedImages((prev) => [
-              ...prev,
-              {
-                id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                dataUrl,
-                name: "Pasted image",
-              },
-            ]);
+            try {
+              const compressed = await compressImage(dataUrl);
+              setAttachedImages((prev) => [
+                ...prev,
+                {
+                  id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                  dataUrl: compressed,
+                  name: "Pasted image",
+                },
+              ]);
+            } catch {
+              setAttachedImages((prev) => [
+                ...prev,
+                {
+                  id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                  dataUrl,
+                  name: "Pasted image",
+                },
+              ]);
+            }
           }
         };
         reader.readAsDataURL(file);
@@ -586,17 +651,29 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       }
 
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const dataUrl = event.target?.result as string;
         if (dataUrl) {
-          setAttachedImages((prev) => [
-            ...prev,
-            {
-              id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-              dataUrl,
-              name: file.name,
-            },
-          ]);
+          try {
+            const compressed = await compressImage(dataUrl);
+            setAttachedImages((prev) => [
+              ...prev,
+              {
+                id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                dataUrl: compressed,
+                name: file.name,
+              },
+            ]);
+          } catch {
+            setAttachedImages((prev) => [
+              ...prev,
+              {
+                id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                dataUrl,
+                name: file.name,
+              },
+            ]);
+          }
         }
       };
       reader.readAsDataURL(file);
