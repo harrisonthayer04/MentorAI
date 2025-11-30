@@ -270,11 +270,11 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
   // Stop TTS when threadId changes
   useEffect(() => {
-    try { 
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-    } catch {}
+    // Call the stopTTS function from ChatPanel which handles both audio element and Web Speech API
+    if (stopTTSRef.current) {
+      stopTTSRef.current();
+    }
+    // Also clear the last spoken text so audio doesn't auto-resume
   }, [threadId]);
 
   const sendMessage = useCallback(async (messageText?: string) => {

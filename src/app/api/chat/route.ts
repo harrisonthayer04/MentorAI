@@ -156,7 +156,7 @@ const MODEL_SLUGS: Record<string, string> = {
   "x-ai/grok-4-fast": "x-ai/grok-4-fast",
   "x-ai/grok-code-fast-1": "x-ai/grok-code-fast-1",
   "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
-  "gemini-3-pro": "google/gemini-3-pro",
+  "gemini-3-pro-preview": "google/gemini-3-pro-preview",
   "anthropic/claude-opus-4.5": "anthropic/claude-opus-4.5",
   "anthropic/claude-sonnet-4.5": "anthropic/claude-sonnet-4.5",
   "anthropic/claude-haiku-4.5": "anthropic/claude-haiku-4.5",
@@ -174,34 +174,19 @@ const IMAGE_MODEL_SLUGS: Record<string, string> = {
   "black-forest-labs/flux.2-pro": "black-forest-labs/flux.2-pro",
 };
 
-// Models that support vision (image input)
+// Models that support vision (image input) - matches models in MODEL_SLUGS
 const VISION_CAPABLE_MODELS: Set<string> = new Set([
-  // Anthropic Claude models
+  // Anthropic Claude models (all Claude 3+ support vision)
   "anthropic/claude-opus-4.5",
   "anthropic/claude-sonnet-4.5",
   "anthropic/claude-haiku-4.5",
-  "anthropic/claude-3.5-sonnet",
-  "anthropic/claude-3-opus",
-  "anthropic/claude-3-sonnet",
-  "anthropic/claude-3-haiku",
   // Google Gemini models
   "google/gemini-2.5-flash-lite",
-  "google/gemini-3-pro",
-  "google/gemini-pro-vision",
-  "google/gemini-1.5-pro",
-  "google/gemini-1.5-flash",
-  // OpenAI models
-  "openai/gpt-4-vision-preview",
-  "openai/gpt-4o",
-  "openai/gpt-4o-mini",
-  "openai/gpt-4-turbo",
-  "openai/gpt-oss-120b",
+  "google/gemini-3-pro-preview",
   // X.AI Grok models
   "x-ai/grok-4-fast",
-  "x-ai/grok-code-fast-1",
-  // Other models
-  "qwen/qwen-vl-plus",
-  "qwen/qwen-vl-max",
+  // OpenAI models
+  "openai/gpt-oss-120b",
 ]);
 
 // NOTE: OpenRouter uses the chat/completions endpoint with modalities: ["image", "text"] for ALL
