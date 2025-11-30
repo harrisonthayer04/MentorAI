@@ -313,7 +313,14 @@ export default function DashboardClient() {
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-sm font-medium">{chat.title}</div>
                       <div className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                        {new Date(chat.createdAt).toLocaleDateString()}
+                        {new Date(chat.createdAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
                       </div>
                     </div>
                     <button

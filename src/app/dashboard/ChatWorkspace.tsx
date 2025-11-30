@@ -209,7 +209,16 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       return;
     }
     const lines = logs.map((entry) => {
-      const ts = new Date(entry.timestamp).toLocaleString();
+      const ts = new Date(entry.timestamp).toLocaleString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+        timeZoneName: 'short'
+      });
       return `[${ts}] [${entry.scope}] ${entry.detail}`;
     });
     const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
@@ -255,10 +264,19 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   }, []);
 
   // Hydrate existing messages into the debug log once per thread when debug mode is enabled
+  // Logs are isolated per chat via the threadId key in the Map
   useEffect(() => {
     if (!debugMode || !threadId) return;
     if (hydratedThreadsRef.current.has(threadId)) return;
     if (messages.length === 0) return;
+    
+    // Add a log entry indicating the chat was opened
+    appendDebugLogs(threadId, [{
+      timestamp: new Date().toISOString(),
+      scope: "session",
+      detail: `Opened conversation: ${threadId}`,
+    }]);
+    
     const entries: DebugLogEntry[] = messages.map((m) => ({
       timestamp: new Date(m.createdAt).toISOString(),
       scope: m.role === "user" ? "user_message" : "assistant_message",
