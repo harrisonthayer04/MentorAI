@@ -7,10 +7,24 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import PlayTTS from "../components/PlayTTS";
 
+type ImageContentPart = {
+  type: "image_url";
+  image_url: { url: string; detail?: "auto" | "low" | "high" };
+};
+type TextContentPart = { type: "text"; text: string };
+type ContentPart = TextContentPart | ImageContentPart;
+
+type AttachedImage = {
+  id: string;
+  dataUrl: string;
+  name: string;
+};
+
 type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  images?: string[]; // Array of image data URLs for display
   speechContent?: string | null;
   createdAt: number;
   optimistic?: boolean;
@@ -80,6 +94,11 @@ function parseTranscriptionResponse(payload: unknown): { text: string | null; er
 const DEBUG_STORAGE_KEY = "bm_debug_mode";
 const DEBUG_EVENT_NAME = "bm_debug_mode_changed";
 
+// Maximum file size for images (10MB)
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+// Supported image types
+const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+
 export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
   const [modelId, setModelId] = useState<string>("gemini-2.5-flash-lite");
   const [imageModelId, setImageModelId] = useState<string>("google/gemini-2.5-flash-image");
@@ -92,6 +111,10 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [autoSendTranscription, setAutoSendTranscription] = useState<boolean>(true);
   const [debugMode, setDebugMode] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const debugLogsRef = useRef<Map<string, DebugLogEntry[]>>(new Map());
   const [debugLogVersion, setDebugLogVersion] = useState<number>(0);
   const hydratedThreadsRef = useRef<Set<string>>(new Set());
@@ -213,19 +236,33 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const sendMessage = useCallback(async (messageText?: string) => {
     if (isLoading) return;
     const text = (messageText ?? inputValue).trim();
-    if (!text) return;
+    const hasImages = attachedImages.length > 0;
+    if (!text && !hasImages) return;
     if (!threadId) return;
     const targetThreadId = threadId;
-    addLocalDebugEntry("client", `User message sent: ${text}`, targetThreadId);
+    
+    // Capture current attached images and clear them
+    const imagesToSend = [...attachedImages];
+    const imageUrls = imagesToSend.map(img => img.dataUrl);
+    
+    addLocalDebugEntry("client", `User message sent: ${text}${hasImages ? ` (with ${imagesToSend.length} images)` : ""}`, targetThreadId);
     const now = Date.now();
     const tempId = `local_${now}`;
-    const userMsg: ChatMessage = { id: tempId, role: "user", content: text, createdAt: now, optimistic: true };
+    const userMsg: ChatMessage = { 
+      id: tempId, 
+      role: "user", 
+      content: text || "(Image)", 
+      images: imageUrls.length > 0 ? imageUrls : undefined,
+      createdAt: now, 
+      optimistic: true 
+    };
     setMessages((prev) => {
       const next = [...prev, userMsg];
       if (threadId) messageCacheRef.current.set(threadId, next);
       return next;
     });
     setInputValue("");
+    setAttachedImages([]);
 
     try {
       setIsLoading(true);
@@ -233,7 +270,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         const res = await fetch("/api/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId: threadId, role: "user", content: text }),
+          body: JSON.stringify({ conversationId: threadId, role: "user", content: text || "(Image attached)" }),
           keepalive: true,
         });
         if (res.ok) {
@@ -246,6 +283,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               id: saved.id,
               role: saved.role,
               content: saved.content,
+              images: imageUrls.length > 0 ? imageUrls : undefined,
               createdAt: new Date(saved.createdAt).getTime(),
             };
             setMessages((prev) => {
@@ -257,6 +295,44 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         }
       } catch {}
 
+      // Build message content - use multimodal format if there are images
+      let messageContent: string | ContentPart[];
+      if (imagesToSend.length > 0) {
+        const contentParts: ContentPart[] = [];
+        // Add text first if present
+        if (text) {
+          contentParts.push({ type: "text", text });
+        }
+        // Add images
+        for (const img of imagesToSend) {
+          contentParts.push({
+            type: "image_url",
+            image_url: { url: img.dataUrl, detail: "auto" },
+          });
+        }
+        messageContent = contentParts;
+      } else {
+        messageContent = text;
+      }
+
+      // Build conversation history, converting stored messages to API format
+      const historyMessages = messages.map(({ role, content, images }) => {
+        if (images && images.length > 0) {
+          const parts: ContentPart[] = [];
+          if (content) {
+            parts.push({ type: "text", text: content });
+          }
+          for (const imgUrl of images) {
+            parts.push({
+              type: "image_url",
+              image_url: { url: imgUrl, detail: "auto" },
+            });
+          }
+          return { role, content: parts };
+        }
+        return { role, content };
+      });
+
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -264,8 +340,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
           modelId,
           imageModelId,
           messages: [
-            ...messages.map(({ role, content }) => ({ role, content })),
-            { role: "user", content: text },
+            ...historyMessages,
+            { role: "user", content: messageContent },
           ],
           conversationId: threadId,
           debug: debugMode,
@@ -309,7 +385,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, inputValue, threadId, addLocalDebugEntry, modelId, imageModelId, messages, debugMode, appendDebugLogs]);
+  }, [isLoading, inputValue, threadId, addLocalDebugEntry, modelId, imageModelId, messages, debugMode, appendDebugLogs, attachedImages]);
 
   const sendForTranscription = useCallback(async (audioBlob: Blob) => {
     try {
@@ -377,6 +453,155 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       setIsRecording(false);
     }
   }, [isRecording]);
+
+  // Handle image file selection
+  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      // Validate file type
+      if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+        alert(`Unsupported file type: ${file.type}. Please use JPEG, PNG, GIF, or WebP.`);
+        return;
+      }
+
+      // Validate file size
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert(`File too large: ${file.name}. Maximum size is 10MB.`);
+        return;
+      }
+
+      // Read file and convert to base64
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) {
+          setAttachedImages((prev) => [
+            ...prev,
+            {
+              id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+              dataUrl,
+              name: file.name,
+            },
+          ]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, []);
+
+  // Remove an attached image
+  const removeAttachedImage = useCallback((id: string) => {
+    setAttachedImages((prev) => prev.filter((img) => img.id !== id));
+  }, []);
+
+  // Handle paste event for images
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        if (file.size > MAX_IMAGE_SIZE) {
+          alert("Pasted image is too large. Maximum size is 10MB.");
+          continue;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const dataUrl = event.target?.result as string;
+          if (dataUrl) {
+            setAttachedImages((prev) => [
+              ...prev,
+              {
+                id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                dataUrl,
+                name: "Pasted image",
+              },
+            ]);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  }, []);
+
+  // Handle drag events for image drop
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set dragging to false if we're leaving the drop zone entirely
+    if (dropZoneRef.current && !dropZoneRef.current.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      // Only accept images
+      if (!file.type.startsWith("image/")) {
+        return;
+      }
+
+      // Validate file type
+      if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+        alert(`Unsupported file type: ${file.type}. Please use JPEG, PNG, GIF, or WebP.`);
+        return;
+      }
+
+      // Validate file size
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert(`File too large: ${file.name}. Maximum size is 10MB.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) {
+          setAttachedImages((prev) => [
+            ...prev,
+            {
+              id: `img_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+              dataUrl,
+              name: file.name,
+            },
+          ]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -492,8 +717,30 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
       </div>
 
       {/* Input Area */}
-      <div className="flex-shrink-0 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 backdrop-blur-sm">
-        <div className="px-4 md:px-8 lg:px-12 py-4">
+      <div 
+        ref={dropZoneRef}
+        className={`flex-shrink-0 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 backdrop-blur-sm transition-colors ${
+          isDragging ? "bg-[var(--color-brand)]/10 border-[var(--color-brand)]" : ""
+        }`}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        <div className="px-4 md:px-8 lg:px-12 py-4 relative">
+          {/* Drop overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[var(--color-brand)]/10 border-2 border-dashed border-[var(--color-brand)] rounded-xl m-2 z-10 pointer-events-none">
+              <div className="flex flex-col items-center gap-2 text-[var(--color-brand)]">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+                <span className="font-medium">Drop images here</span>
+              </div>
+            </div>
+          )}
           {/* Settings toggle row */}
           <div className="flex items-center justify-between mb-3">
             <button
@@ -640,15 +887,59 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
             </div>
           )}
 
+          {/* Image previews */}
+          {attachedImages.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {attachedImages.map((img) => (
+                <div
+                  key={img.id}
+                  className="relative group rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface-elevated)]"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.dataUrl}
+                    alt={img.name}
+                    className="w-20 h-20 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeAttachedImage(img.id)}
+                    className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                    aria-label="Remove image"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-1 py-0.5 truncate">
+                    {img.name}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            multiple
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+
           {/* Input form */}
           <form onSubmit={handleSubmit} className="relative">
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               rows={1}
-              placeholder={threadId ? "Send a message..." : "Select a conversation to start"}
-              className="w-full rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-4 py-3 pr-24 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/50 focus:border-transparent resize-none"
+              placeholder={threadId ? "Send a message or paste an image..." : "Select a conversation to start"}
+              className="w-full rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-4 py-3 pr-32 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/50 focus:border-transparent resize-none"
               disabled={!threadId}
               style={{ minHeight: "48px", maxHeight: "200px" }}
               onInput={(e) => {
@@ -660,6 +951,29 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
 
             {/* Action buttons */}
             <div className="absolute right-2 bottom-2 flex items-center gap-1">
+              {/* Image upload button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!threadId}
+                className="relative p-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Attach image"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+                {attachedImages.length > 0 && (
+                  <span 
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-xs flex items-center justify-center font-medium"
+                    style={{ backgroundColor: 'var(--color-brand)' }}
+                  >
+                    {attachedImages.length}
+                  </span>
+                )}
+              </button>
+
               {/* Voice input */}
               <button
                 type="button"
@@ -688,7 +1002,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               {/* Send button */}
               <button
                 type="submit"
-                disabled={!threadId || !inputValue.trim() || isLoading}
+                disabled={!threadId || (!inputValue.trim() && attachedImages.length === 0) || isLoading}
                 className="p-2 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: 'var(--color-brand)' }}
                 onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.filter = 'brightness(1.1)'; }}
@@ -709,7 +1023,7 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
           </form>
 
           <p className="mt-2 text-xs text-center text-[var(--color-text-muted)]">
-            Press Enter to send, Shift+Enter for new line
+            Press Enter to send, Shift+Enter for new line • Paste or attach images
           </p>
         </div>
       </div>
@@ -983,6 +1297,21 @@ function ChatPanel({
                   }`}
                   style={m.role === "user" ? { backgroundColor: 'var(--color-brand)' } : undefined}
                 >
+                  {/* Display attached images for user messages */}
+                  {m.role === "user" && m.images && m.images.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {m.images.map((imgUrl, idx) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={idx}
+                          src={imgUrl}
+                          alt={`Attached image ${idx + 1}`}
+                          className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-white/20"
+                        />
+                      ))}
+                    </div>
+                  )}
+                  
                   {m.role === "assistant" && m.speechContent && !enableAudio ? (
                     <>
                       <div className="prose prose-invert prose-sm max-w-none">

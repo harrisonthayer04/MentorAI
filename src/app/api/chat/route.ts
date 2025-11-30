@@ -4,7 +4,19 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSystemPrompt } from "@/lib/system-prompt";
 
-type IncomingMessage = { role: "user" | "assistant" | "system"; content: string };
+// Image content part for vision models
+type ImageContentPart = {
+  type: "image_url";
+  image_url: { url: string; detail?: "auto" | "low" | "high" };
+};
+type TextContentPart = { type: "text"; text: string };
+type ContentPart = TextContentPart | ImageContentPart;
+
+// Message can have string content or array of content parts (for images)
+type IncomingMessage = {
+  role: "user" | "assistant" | "system";
+  content: string | ContentPart[];
+};
 
 // Types for tool-calling compatibility with OpenRouter (OpenAI-style)
 type ToolFunctionCall = { name: string; arguments: string };
@@ -12,7 +24,8 @@ type ToolCall = { id: string; type: "function"; function: ToolFunctionCall };
 type AssistantMessageWithToolCalls = { role: "assistant"; content: string | null; tool_calls: ToolCall[] };
 type AssistantMessageWithFunctionCall = { role: "assistant"; content: string | null; function_call: ToolFunctionCall };
 type ToolMessage = { role: "tool"; content: string; tool_call_id: string; name?: string };
-type OpenAIMessage = IncomingMessage | AssistantMessageWithToolCalls | AssistantMessageWithFunctionCall | ToolMessage;
+type MultimodalMessage = { role: "user" | "system"; content: string | ContentPart[] };
+type OpenAIMessage = IncomingMessage | AssistantMessageWithToolCalls | AssistantMessageWithFunctionCall | ToolMessage | MultimodalMessage;
 type ChoiceMessage = Partial<AssistantMessageWithToolCalls & AssistantMessageWithFunctionCall> & { content?: unknown };
 type ToolResult = { ok: boolean; error?: string };
 type DebugLogEntry = { timestamp: string; scope: string; detail: string };
@@ -71,6 +84,47 @@ function extractMessageContent(raw: unknown): string {
   return "";
 }
 
+function isVisionCapableModel(modelSlug: string): boolean {
+  // Check both the original ID and the resolved slug
+  return VISION_CAPABLE_MODELS.has(modelSlug) || 
+    Array.from(VISION_CAPABLE_MODELS).some(m => modelSlug.includes(m.split('/').pop() || ''));
+}
+
+// Extract text-only content from a message for storage (strip image data to save space)
+function extractTextContentForStorage(content: string | ContentPart[]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  return content
+    .filter((part): part is TextContentPart => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
+}
+
+// Check if message content contains images
+function hasImageContent(content: string | ContentPart[]): boolean {
+  if (typeof content === "string") {
+    return false;
+  }
+  return content.some((part) => part.type === "image_url");
+}
+
+// Format message content for the API (convert to multimodal format if needed)
+function formatMessageContent(
+  content: string | ContentPart[],
+  supportsVision: boolean
+): string | ContentPart[] {
+  // If content is already an array, use it directly for vision models
+  if (Array.isArray(content)) {
+    if (supportsVision) {
+      return content;
+    }
+    // For non-vision models, extract text only
+    return extractTextContentForStorage(content);
+  }
+  return content;
+}
+
 function parseResponseContent(rawContent: string): { speech: string; display: string } {
   const speechMatch = rawContent.match(/<speech>([\s\S]*?)<\/speech>/i);
   const displayMatch = rawContent.match(/<display>([\s\S]*?)<\/display>/i);
@@ -116,6 +170,36 @@ const IMAGE_MODEL_SLUGS: Record<string, string> = {
   "openai/gpt-5-image": "openai/gpt-5-image",
   "black-forest-labs/flux.2-pro": "black-forest-labs/flux.2-pro",
 };
+
+// Models that support vision (image input)
+const VISION_CAPABLE_MODELS: Set<string> = new Set([
+  // Anthropic Claude models
+  "anthropic/claude-opus-4.5",
+  "anthropic/claude-sonnet-4.5",
+  "anthropic/claude-haiku-4.5",
+  "anthropic/claude-3.5-sonnet",
+  "anthropic/claude-3-opus",
+  "anthropic/claude-3-sonnet",
+  "anthropic/claude-3-haiku",
+  // Google Gemini models
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-3-pro",
+  "google/gemini-pro-vision",
+  "google/gemini-1.5-pro",
+  "google/gemini-1.5-flash",
+  // OpenAI models
+  "openai/gpt-4-vision-preview",
+  "openai/gpt-4o",
+  "openai/gpt-4o-mini",
+  "openai/gpt-4-turbo",
+  "openai/gpt-oss-120b",
+  // X.AI Grok models
+  "x-ai/grok-4-fast",
+  "x-ai/grok-code-fast-1",
+  // Other models
+  "qwen/qwen-vl-plus",
+  "qwen/qwen-vl-max",
+]);
 
 // NOTE: OpenRouter uses the chat/completions endpoint with modalities: ["image", "text"] for ALL
 // image generation models, including diffusion models like FLUX. Do NOT add models here unless
@@ -374,10 +458,22 @@ export async function POST(req: Request) {
       },
     ];
 
+    // Check if the current model supports vision
+    const supportsVision = isVisionCapableModel(model);
+    pushDebug("vision_support", { model, supportsVision });
+
     // Build conversation messages, replacing any system message with our enhanced one
+    // Format messages appropriately based on vision support
     const convoMessages: OpenAIMessage[] = [
       { role: "system", content: systemPrompt },
-      ...(Array.isArray(messages) ? messages.filter(m => m.role !== "system") : [])
+      ...(Array.isArray(messages) 
+        ? messages
+            .filter(m => m.role !== "system")
+            .map(m => ({
+              ...m,
+              content: formatMessageContent(m.content, supportsVision),
+            }))
+        : [])
     ];
     let finalContent = "";
     let finalSpeechContent = "";
