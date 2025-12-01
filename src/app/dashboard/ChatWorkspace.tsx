@@ -1831,6 +1831,59 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   );
 }
 
+// Thinking indicator with smooth elapsed time animation
+function ThinkingIndicator() {
+  const [elapsed, setElapsed] = useState(0);
+  const startTimeRef = useRef(Date.now());
+  
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+    
+    const updateElapsed = () => {
+      const now = Date.now();
+      setElapsed((now - startTimeRef.current) / 1000);
+    };
+    
+    // Update frequently for smooth animation
+    const interval = setInterval(updateElapsed, 50);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Format with one decimal place for smooth counting
+  const displayTime = elapsed.toFixed(1);
+  
+  return (
+    <div className="flex gap-3 justify-start">
+      <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--color-brand)' }}>
+        <svg className="w-4 h-4 text-white animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      </div>
+      <div className="bg-[var(--color-surface-elevated)]/80 border border-[var(--color-border)]/50 rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-[var(--color-text-muted)]">
+            Thinking for{" "}
+            <span 
+              className="font-mono tabular-nums inline-block min-w-[3ch] text-right"
+              style={{ 
+                transition: 'opacity 0.1s ease-out',
+              }}
+            >
+              {displayTime}
+            </span>
+            s
+          </span>
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: 'var(--color-brand)' }}></span>
+            <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: 'var(--color-brand)' }}></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChatPanel({
   messages,
   isLoading,
@@ -1866,20 +1919,71 @@ function ChatPanel({
   }, []);
 
   const convertMathDelimiters = useCallback((input: string) => {
-    return input
+    // LaTeX commands that indicate math content
+    const mathIndicators = [
+      '\\frac', '\\sqrt', '\\sum', '\\int', '\\prod', '\\lim',
+      '\\alpha', '\\beta', '\\gamma', '\\delta', '\\epsilon', '\\theta', '\\lambda', '\\mu', '\\pi', '\\rho', '\\sigma', '\\omega',
+      '\\Pi', '\\Sigma', '\\Omega', '\\Delta', '\\Gamma', '\\Lambda',
+      '\\text', '\\mathrm', '\\mathbf', '\\mathit',
+      '\\cdot', '\\times', '\\div', '\\pm', '\\mp',
+      '\\leq', '\\geq', '\\neq', '\\approx', '\\equiv', '\\sim',
+      '\\rightarrow', '\\leftarrow', '\\Rightarrow', '\\Leftarrow',
+      '\\partial', '\\nabla', '\\infty',
+      '\\begin', '\\end',
+      '\\quad', '\\qquad',
+      '\\dfrac', '\\tfrac',
+      '\\left', '\\right',
+      '\\over', '\\above',
+    ];
+    
+    // Process line by line to handle orphaned math expressions
+    const lines = input.split('\n');
+    const processedLines = lines.map((line) => {
+      const trimmed = line.trim();
+      
+      // Skip empty lines or lines already wrapped in $$ or $
+      if (!trimmed || trimmed.startsWith('$$') || (trimmed.startsWith('$') && !trimmed.startsWith('$$'))) {
+        return line;
+      }
+      
+      // Check if line contains LaTeX math indicators but no $ delimiters
+      const hasMathIndicator = mathIndicators.some(indicator => trimmed.includes(indicator));
+      const hasDelimiters = trimmed.includes('$') || trimmed.includes('\\[') || trimmed.includes('\\(');
+      
+      // If line looks like standalone math (starts with \ or contains math indicators without delimiters)
+      if (hasMathIndicator && !hasDelimiters) {
+        // Check if it's a standalone math expression (the whole line is math)
+        // These typically start with a backslash command or are equations
+        const looksLikeBlockMath = /^\\[A-Za-z]/.test(trimmed) || 
+                                    /^[A-Za-z]?\s*=/.test(trimmed) ||
+                                    trimmed.startsWith('^') ||
+                                    trimmed.startsWith('_');
+        if (looksLikeBlockMath) {
+          return `$$${trimmed}$$`;
+        }
+      }
+      
+      return line;
+    });
+    
+    let result = processedLines.join('\n');
+    
+    // Now apply the standard conversions
+    result = result
       // Convert \[...\] to $$...$$ (block math)
       .replace(/\\\[([\s\S]*?)\\\]/g, (_, content) => `\n$$${content.trim()}$$\n`)
       // Convert \(...\) to $...$ (inline math)
-      .replace(/\\\(([\s\S]*?)\\\)/g, (_, content) => `$${content.trim()}$`)
-      // Ensure block math ($$...$$) has proper newlines for remark-math to parse correctly
-      // This handles cases where $$ is not on its own line
-      .replace(/([^\n])\$\$([^$]+)\$\$([^\n])/g, (_, before, content, after) => 
-        `${before}\n$$${content.trim()}$$\n${after}`
-      )
-      // Handle $$ at start of line without preceding newline
-      .replace(/^(\$\$[^$]+\$\$)/gm, (match) => `\n${match}`)
-      // Handle $$ at end without following newline  
-      .replace(/(\$\$[^$]+\$\$)$/gm, (match) => `${match}\n`);
+      .replace(/\\\(([\s\S]*?)\\\)/g, (_, content) => `$${content.trim()}$`);
+    
+    // Ensure block math ($$...$$) has proper newlines for remark-math to parse correctly
+    // First, normalize any existing $$ blocks
+    result = result
+      // Add newline before $$ if not already there
+      .replace(/([^\n])(\$\$)/g, '$1\n$2')
+      // Add newline after $$ if not already there  
+      .replace(/(\$\$)([^\n$])/g, '$1\n$2');
+    
+    return result;
   }, []);
 
   const latestAssistantText = useMemo(() => {
@@ -2199,22 +2303,7 @@ function ChatPanel({
           })}
 
           {/* Loading indicator */}
-          {isLoading && (
-            <div className="flex gap-3 justify-start">
-              <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--color-brand)' }}>
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-              </div>
-              <div className="bg-[var(--color-surface-elevated)]/80 border border-[var(--color-border)]/50 rounded-2xl px-4 py-3">
-                <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-[var(--color-text-muted)] animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 rounded-full bg-[var(--color-text-muted)] animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 rounded-full bg-[var(--color-text-muted)] animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
-            </div>
-          )}
+          {isLoading && <ThinkingIndicator />}
 
           <div ref={bottomRef} />
         </div>
