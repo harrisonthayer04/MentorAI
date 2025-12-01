@@ -7,6 +7,300 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import PlayTTS from "../components/PlayTTS";
 
+// Image Viewer Modal Component
+function ImageViewer({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied" | "error">("idle");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Reset position when zoom changes
+  useEffect(() => {
+    if (zoom === 1) {
+      setPosition({ x: 0, y: 0 });
+    }
+  }, [zoom]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "+" || e.key === "=") {
+        setZoom((z) => Math.min(z + 0.25, 5));
+      } else if (e.key === "-") {
+        setZoom((z) => Math.max(z - 0.25, 0.25));
+      } else if (e.key === "0") {
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  // Handle mouse wheel zoom
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom((z) => Math.min(Math.max(z + delta, 0.25), 5));
+  }, []);
+
+  // Handle drag start
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (zoom > 1) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    }
+  }, [zoom, position]);
+
+  // Handle drag move
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  }, [isDragging, dragStart]);
+
+  // Handle drag end
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Download image
+  const handleDownload = useCallback(async () => {
+    try {
+      // For data URLs, create a link directly
+      if (src.startsWith("data:")) {
+        const link = document.createElement("a");
+        link.href = src;
+        const extension = src.includes("image/png") ? "png" : src.includes("image/gif") ? "gif" : "jpg";
+        link.download = `image-${Date.now()}.${extension}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // For URLs, fetch and download
+        const response = await fetch(src);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        const extension = blob.type.includes("png") ? "png" : blob.type.includes("gif") ? "gif" : "jpg";
+        link.download = `image-${Date.now()}.${extension}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Failed to download image:", error);
+    }
+  }, [src]);
+
+  // Copy image to clipboard
+  const handleCopy = useCallback(async () => {
+    setCopyStatus("copying");
+    try {
+      // Create an image element to get the image data
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = src;
+      });
+
+      // Draw to canvas
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not get canvas context");
+      ctx.drawImage(img, 0, 0);
+
+      // Convert to blob and copy
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+          else reject(new Error("Failed to create blob"));
+        }, "image/png");
+      });
+
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+    } catch (error) {
+      console.error("Failed to copy image:", error);
+      setCopyStatus("error");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+    }
+  }, [src]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{ animation: "fade-in 0.15s ease-out" }}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+        aria-label="Close"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+
+      {/* Toolbar */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-surface-elevated)]/90 border border-[var(--color-border)] backdrop-blur-sm z-10">
+        {/* Zoom out */}
+        <button
+          onClick={() => setZoom((z) => Math.max(z - 0.25, 0.25))}
+          className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+          title="Zoom out (-)"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            <line x1="8" y1="11" x2="14" y2="11" />
+          </svg>
+        </button>
+
+        {/* Zoom indicator */}
+        <span className="text-sm text-[var(--color-text)] font-medium min-w-[4rem] text-center">
+          {Math.round(zoom * 100)}%
+        </span>
+
+        {/* Zoom in */}
+        <button
+          onClick={() => setZoom((z) => Math.min(z + 0.25, 5))}
+          className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+          title="Zoom in (+)"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            <line x1="11" y1="8" x2="11" y2="14" />
+            <line x1="8" y1="11" x2="14" y2="11" />
+          </svg>
+        </button>
+
+        {/* Reset zoom */}
+        <button
+          onClick={() => {
+            setZoom(1);
+            setPosition({ x: 0, y: 0 });
+          }}
+          className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+          title="Reset zoom (0)"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+        </button>
+
+        <div className="w-px h-5 bg-[var(--color-border)]" />
+
+        {/* Download */}
+        <button
+          onClick={handleDownload}
+          className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+          title="Download image"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
+
+        {/* Copy to clipboard */}
+        <button
+          onClick={handleCopy}
+          disabled={copyStatus === "copying"}
+          className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors disabled:opacity-50"
+          title="Copy to clipboard"
+        >
+          {copyStatus === "copied" ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : copyStatus === "error" ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {/* Image container */}
+      <div
+        ref={containerRef}
+        className="relative max-w-[90vw] max-h-[85vh] overflow-hidden"
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ cursor: zoom > 1 ? (isDragging ? "grabbing" : "grab") : "default" }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg select-none"
+          style={{
+            transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
+            transition: isDragging ? "none" : "transform 0.1s ease-out",
+          }}
+          draggable={false}
+        />
+      </div>
+
+      {/* Alt text / caption */}
+      {alt && alt !== "Generated image" && alt !== "Attached image" && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-[var(--color-surface-elevated)]/90 border border-[var(--color-border)] backdrop-blur-sm max-w-[80vw]">
+          <p className="text-sm text-[var(--color-text-secondary)] text-center truncate">{alt}</p>
+        </div>
+      )}
+
+      {/* Keyboard shortcuts hint */}
+      <div className="absolute bottom-4 right-4 text-xs text-white/50">
+        <span className="hidden sm:inline">Scroll to zoom • Drag to pan • Esc to close</span>
+      </div>
+    </div>
+  );
+}
+
 type ImageContentPart = {
   type: "image_url";
   image_url: { url: string; detail?: "auto" | "low" | "high" };
@@ -1237,6 +1531,15 @@ function ChatPanel({
   const [playBlocked, setPlayBlocked] = useState<boolean>(false);
   const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [viewerImage, setViewerImage] = useState<{ src: string; alt: string } | null>(null);
+
+  const openImageViewer = useCallback((src: string, alt: string) => {
+    setViewerImage({ src, alt });
+  }, []);
+
+  const closeImageViewer = useCallback(() => {
+    setViewerImage(null);
+  }, []);
 
   const convertMathDelimiters = useCallback((input: string) => {
     return input
@@ -1490,7 +1793,8 @@ function ChatPanel({
                           key={idx}
                           src={imgUrl}
                           alt={`Attached image ${idx + 1}`}
-                          className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-white/20"
+                          className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-white/20 cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => openImageViewer(imgUrl, `Attached image ${idx + 1}`)}
                         />
                       ))}
                     </div>
@@ -1503,7 +1807,7 @@ function ChatPanel({
                           remarkPlugins={[remarkGfm, remarkMath]}
                           rehypePlugins={[rehypeKatex]}
                           urlTransform={(value) => value}
-                          components={markdownComponents(m.role)}
+                          components={markdownComponents(m.role, openImageViewer)}
                         >
                           {convertMathDelimiters(m.speechContent)}
                         </ReactMarkdown>
@@ -1516,7 +1820,7 @@ function ChatPanel({
                               remarkPlugins={[remarkGfm, remarkMath]}
                               rehypePlugins={[rehypeKatex]}
                               urlTransform={(value) => value}
-                              components={markdownComponents(m.role)}
+                              components={markdownComponents(m.role, openImageViewer)}
                             >
                               {convertMathDelimiters(m.content)}
                             </ReactMarkdown>
@@ -1530,7 +1834,7 @@ function ChatPanel({
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[rehypeKatex]}
                         urlTransform={(value) => value}
-                        components={markdownComponents(m.role)}
+                        components={markdownComponents(m.role, openImageViewer)}
                       >
                         {convertMathDelimiters(m.content)}
                       </ReactMarkdown>
@@ -1580,12 +1884,21 @@ function ChatPanel({
           <div ref={bottomRef} />
         </div>
       </div>
+
+      {/* Image Viewer Modal */}
+      {viewerImage && (
+        <ImageViewer
+          src={viewerImage.src}
+          alt={viewerImage.alt}
+          onClose={closeImageViewer}
+        />
+      )}
     </div>
   );
 }
 
 // Markdown components for rendering
-function markdownComponents(role: "user" | "assistant") {
+function markdownComponents(role: "user" | "assistant", onImageClick?: (src: string, alt: string) => void) {
   const isUser = role === "user";
   return {
     p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
@@ -1607,8 +1920,9 @@ function markdownComponents(role: "user" | "assistant") {
       <img
         src={src}
         alt={alt || "Generated image"}
-        className="max-w-full h-auto rounded-lg my-2 border border-[var(--color-border)]"
+        className="max-w-full h-auto rounded-lg my-2 border border-[var(--color-border)] cursor-pointer hover:opacity-90 transition-opacity"
         loading="lazy"
+        onClick={() => onImageClick?.(src || "", alt || "Image")}
         {...props}
       />
     ),

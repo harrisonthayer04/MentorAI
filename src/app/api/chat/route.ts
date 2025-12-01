@@ -215,11 +215,6 @@ const VISION_CAPABLE_MODELS: Set<string> = new Set([
   // OpenAI models
   "openai/gpt-oss-120b",
 ]);
-
-// NOTE: OpenRouter uses the chat/completions endpoint with modalities: ["image", "text"] for ALL
-// image generation models, including diffusion models like FLUX. Do NOT add models here unless
-// you're integrating with a provider that specifically requires the /images/generations endpoint.
-// OpenRouter does NOT support /images/generations - all models should use the multimodal chat path.
 const DIFFUSION_MODELS: Set<string> = new Set([
   // Empty - OpenRouter routes all image models through chat/completions with modalities
 ]);
