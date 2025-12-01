@@ -728,12 +728,30 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         if (cancelled) return;
         const normalized = (data.messages || []).map((m) => ({ ...m, createdAt: new Date(m.createdAt).getTime() } as ChatMessage));
         setMessages((prev) => {
+          // Build a map of previous messages that have images (to preserve them)
+          const prevImagesMap = new Map<string, string[]>();
+          prev.forEach((m) => {
+            if (m.images && m.images.length > 0) {
+              prevImagesMap.set(m.id, m.images);
+              // Also map by content for messages that got new IDs from server
+              prevImagesMap.set(`content:${m.content}:${m.createdAt}`, m.images);
+            }
+          });
+          
+          // Merge images from previous state into normalized messages
+          const normalizedWithImages = normalized.map((m) => {
+            const directImages = prevImagesMap.get(m.id);
+            const contentImages = prevImagesMap.get(`content:${m.content}:${m.createdAt}`);
+            const images = directImages || contentImages;
+            return images ? { ...m, images } : m;
+          });
+          
           const pendingLocals = prev.filter((m) => m.optimistic && m.id.startsWith("local_"));
           if (pendingLocals.length === 0) {
-            messageCacheRef.current.set(threadId, normalized);
-            return normalized;
+            messageCacheRef.current.set(threadId, normalizedWithImages);
+            return normalizedWithImages;
           }
-          const merged = [...normalized, ...pendingLocals].sort((a, b) => a.createdAt - b.createdAt);
+          const merged = [...normalizedWithImages, ...pendingLocals].sort((a, b) => a.createdAt - b.createdAt);
           messageCacheRef.current.set(threadId, merged);
           return merged;
         });
