@@ -8,22 +8,65 @@ import rehypeKatex from "rehype-katex";
 import PlayTTS from "../components/PlayTTS";
 import ModelSelector, { ModelSelectorButton, PROVIDERS } from "../components/ModelSelector";
 
-// Image Viewer Modal Component
+// Drawing stroke type
+type DrawingStroke = {
+  points: { x: number; y: number }[];
+  color: string;
+  width: number;
+};
+
+// Image Viewer Modal Component with Drawing Support
 function ImageViewer({
   src,
   alt,
   onClose,
+  onAnnotatedImage,
 }: {
   src: string;
   alt: string;
   onClose: () => void;
+  onAnnotatedImage?: (dataUrl: string) => void;
 }) {
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied" | "error">("idle");
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [strokes, setStrokes] = useState<DrawingStroke[]>([]);
+  const [currentStroke, setCurrentStroke] = useState<DrawingStroke | null>(null);
+  const [brushColor, setBrushColor] = useState("#ef4444"); // Red default
+  const [brushWidth, setBrushWidth] = useState(4);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  const BRUSH_COLORS = [
+    "#ef4444", // Red
+    "#f97316", // Orange
+    "#eab308", // Yellow
+    "#22c55e", // Green
+    "#3b82f6", // Blue
+    "#8b5cf6", // Purple
+    "#ec4899", // Pink
+    "#ffffff", // White
+    "#000000", // Black
+  ];
+
+  // Load image and get dimensions
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      setImageLoaded(true);
+    };
+    img.src = src;
+  }, [src]);
 
   // Reset position when zoom changes
   useEffect(() => {
@@ -32,53 +75,129 @@ function ImageViewer({
     }
   }, [zoom]);
 
+  // Draw strokes on canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imageLoaded) return;
+    
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw all strokes
+    const allStrokes = currentStroke ? [...strokes, currentStroke] : strokes;
+    for (const stroke of allStrokes) {
+      if (stroke.points.length < 2) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i++) {
+        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      }
+      ctx.stroke();
+    }
+  }, [strokes, currentStroke, imageLoaded]);
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        if (isDrawingMode) {
+          setIsDrawingMode(false);
+        } else {
+          onClose();
+        }
       } else if (e.key === "+" || e.key === "=") {
-        setZoom((z) => Math.min(z + 0.25, 5));
+        if (!isDrawingMode) setZoom((z) => Math.min(z + 0.25, 5));
       } else if (e.key === "-") {
-        setZoom((z) => Math.max(z - 0.25, 0.25));
+        if (!isDrawingMode) setZoom((z) => Math.max(z - 0.25, 0.25));
       } else if (e.key === "0") {
-        setZoom(1);
-        setPosition({ x: 0, y: 0 });
+        if (!isDrawingMode) {
+          setZoom(1);
+          setPosition({ x: 0, y: 0 });
+        }
+      } else if (e.key === "d" || e.key === "D") {
+        setIsDrawingMode((m) => !m);
+      } else if ((e.key === "z" || e.key === "Z") && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setStrokes((prev) => prev.slice(0, -1));
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [onClose, isDrawingMode]);
 
-  // Handle mouse wheel zoom
+  // Get canvas coordinates from mouse event
+  const getCanvasCoords = useCallback((e: React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  }, []);
+
+  // Handle mouse wheel zoom (only when not drawing)
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (isDrawingMode) return;
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setZoom((z) => Math.min(Math.max(z + delta, 0.25), 5));
-  }, []);
+  }, [isDrawingMode]);
 
-  // Handle drag start
+  // Handle mouse down
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (zoom > 1) {
+    if (isDrawingMode) {
+      const coords = getCanvasCoords(e);
+      if (coords) {
+        setIsDrawing(true);
+        setCurrentStroke({
+          points: [coords],
+          color: brushColor,
+          width: brushWidth,
+        });
+      }
+    } else if (zoom > 1) {
       setIsDragging(true);
       setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
     }
-  }, [zoom, position]);
+  }, [isDrawingMode, zoom, position, getCanvasCoords, brushColor, brushWidth]);
 
-  // Handle drag move
+  // Handle mouse move
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging) {
+    if (isDrawingMode && isDrawing) {
+      const coords = getCanvasCoords(e);
+      if (coords && currentStroke) {
+        setCurrentStroke({
+          ...currentStroke,
+          points: [...currentStroke.points, coords],
+        });
+      }
+    } else if (isDragging) {
       setPosition({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       });
     }
-  }, [isDragging, dragStart]);
+  }, [isDrawingMode, isDrawing, isDragging, dragStart, getCanvasCoords, currentStroke]);
 
-  // Handle drag end
+  // Handle mouse up
   const handleMouseUp = useCallback(() => {
+    if (isDrawing && currentStroke && currentStroke.points.length > 1) {
+      setStrokes((prev) => [...prev, currentStroke]);
+    }
+    setIsDrawing(false);
+    setCurrentStroke(null);
     setIsDragging(false);
-  }, []);
+  }, [isDrawing, currentStroke]);
 
   // Download image
   const handleDownload = useCallback(async () => {
@@ -115,7 +234,6 @@ function ImageViewer({
   const handleCopy = useCallback(async () => {
     setCopyStatus("copying");
     try {
-      // Create an image element to get the image data
       const img = new Image();
       img.crossOrigin = "anonymous";
       
@@ -125,7 +243,6 @@ function ImageViewer({
         img.src = src;
       });
 
-      // Draw to canvas
       const canvas = document.createElement("canvas");
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
@@ -133,7 +250,6 @@ function ImageViewer({
       if (!ctx) throw new Error("Could not get canvas context");
       ctx.drawImage(img, 0, 0);
 
-      // Convert to blob and copy
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((b) => {
           if (b) resolve(b);
@@ -154,18 +270,89 @@ function ImageViewer({
     }
   }, [src]);
 
+  // Export annotated image
+  const handleExportAnnotated = useCallback(async () => {
+    if (!onAnnotatedImage || strokes.length === 0) return;
+
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = src;
+      });
+
+      // Create canvas with image
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not get canvas context");
+      
+      // Draw original image
+      ctx.drawImage(img, 0, 0);
+      
+      // Draw all strokes
+      for (const stroke of strokes) {
+        if (stroke.points.length < 2) continue;
+        ctx.beginPath();
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.width;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+        ctx.stroke();
+      }
+
+      // Export as data URL
+      const dataUrl = canvas.toDataURL("image/png");
+      onAnnotatedImage(dataUrl);
+      onClose();
+    } catch (error) {
+      console.error("Failed to export annotated image:", error);
+    }
+  }, [src, strokes, onAnnotatedImage, onClose]);
+
+  // Clear all drawings
+  const handleClearDrawings = useCallback(() => {
+    setStrokes([]);
+    setCurrentStroke(null);
+  }, []);
+
+  // Undo last stroke
+  const handleUndo = useCallback(() => {
+    setStrokes((prev) => prev.slice(0, -1));
+  }, []);
+
+  // Calculate display dimensions
+  const displayDimensions = useMemo(() => {
+    if (!imageLoaded) return { width: 0, height: 0 };
+    const maxWidth = window.innerWidth * 0.9;
+    const maxHeight = window.innerHeight * 0.85;
+    const scale = Math.min(maxWidth / imageDimensions.width, maxHeight / imageDimensions.height, 1);
+    return {
+      width: imageDimensions.width * scale,
+      height: imageDimensions.height * scale,
+    };
+  }, [imageLoaded, imageDimensions]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !isDrawingMode) onClose();
       }}
       style={{ animation: "fade-in 0.15s ease-out" }}
     >
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+        className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors z-20"
         aria-label="Close"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -174,56 +361,159 @@ function ImageViewer({
         </svg>
       </button>
 
-      {/* Toolbar */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-surface-elevated)]/90 border border-[var(--color-border)] backdrop-blur-sm z-10">
-        {/* Zoom out */}
+      {/* Main Toolbar */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-surface-elevated)]/90 border border-[var(--color-border)] backdrop-blur-sm z-20">
+        {/* Drawing mode toggle */}
         <button
-          onClick={() => setZoom((z) => Math.max(z - 0.25, 0.25))}
-          className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
-          title="Zoom out (-)"
+          onClick={() => setIsDrawingMode(!isDrawingMode)}
+          className={`p-1.5 rounded-lg transition-colors ${
+            isDrawingMode
+              ? "bg-[var(--color-brand)] text-white"
+              : "hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+          }`}
+          title="Toggle drawing mode (D)"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            <line x1="8" y1="11" x2="14" y2="11" />
-          </svg>
-        </button>
-
-        {/* Zoom indicator */}
-        <span className="text-sm text-[var(--color-text)] font-medium min-w-[4rem] text-center">
-          {Math.round(zoom * 100)}%
-        </span>
-
-        {/* Zoom in */}
-        <button
-          onClick={() => setZoom((z) => Math.min(z + 0.25, 5))}
-          className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
-          title="Zoom in (+)"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            <line x1="11" y1="8" x2="11" y2="14" />
-            <line x1="8" y1="11" x2="14" y2="11" />
-          </svg>
-        </button>
-
-        {/* Reset zoom */}
-        <button
-          onClick={() => {
-            setZoom(1);
-            setPosition({ x: 0, y: 0 });
-          }}
-          className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
-          title="Reset zoom (0)"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-            <path d="M3 3v5h5" />
+            <path d="M12 19l7-7 3 3-7 7-3-3z" />
+            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+            <path d="M2 2l7.586 7.586" />
+            <circle cx="11" cy="11" r="2" />
           </svg>
         </button>
 
         <div className="w-px h-5 bg-[var(--color-border)]" />
+
+        {!isDrawingMode && (
+          <>
+            {/* Zoom out */}
+            <button
+              onClick={() => setZoom((z) => Math.max(z - 0.25, 0.25))}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+              title="Zoom out (-)"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+            </button>
+
+            {/* Zoom indicator */}
+            <span className="text-sm text-[var(--color-text)] font-medium min-w-[4rem] text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+
+            {/* Zoom in */}
+            <button
+              onClick={() => setZoom((z) => Math.min(z + 0.25, 5))}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+              title="Zoom in (+)"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="11" y1="8" x2="11" y2="14" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+            </button>
+
+            {/* Reset zoom */}
+            <button
+              onClick={() => {
+                setZoom(1);
+                setPosition({ x: 0, y: 0 });
+              }}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+              title="Reset zoom (0)"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+            </button>
+
+            <div className="w-px h-5 bg-[var(--color-border)]" />
+          </>
+        )}
+
+        {isDrawingMode && (
+          <>
+            {/* Color picker */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColorPicker(!showColorPicker)}
+                className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
+                title="Brush color"
+              >
+                <div
+                  className="w-5 h-5 rounded-full border-2 border-white/50"
+                  style={{ backgroundColor: brushColor }}
+                />
+              </button>
+              {showColorPicker && (
+                <div className="absolute top-full left-0 mt-2 p-2 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] shadow-lg grid grid-cols-3 gap-1">
+                  {BRUSH_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => {
+                        setBrushColor(color);
+                        setShowColorPicker(false);
+                      }}
+                      className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                        brushColor === color ? "border-white" : "border-transparent"
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Brush size */}
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="2"
+                max="20"
+                value={brushWidth}
+                onChange={(e) => setBrushWidth(parseInt(e.target.value))}
+                className="w-20"
+                style={{ accentColor: brushColor }}
+              />
+              <span className="text-xs text-[var(--color-text-muted)] w-6">{brushWidth}px</span>
+            </div>
+
+            <div className="w-px h-5 bg-[var(--color-border)]" />
+
+            {/* Undo */}
+            <button
+              onClick={handleUndo}
+              disabled={strokes.length === 0}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors disabled:opacity-50"
+              title="Undo (Ctrl+Z)"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7v6h6" />
+                <path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13" />
+              </svg>
+            </button>
+
+            {/* Clear */}
+            <button
+              onClick={handleClearDrawings}
+              disabled={strokes.length === 0}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors disabled:opacity-50"
+              title="Clear all"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" />
+              </svg>
+            </button>
+
+            <div className="w-px h-5 bg-[var(--color-border)]" />
+          </>
+        )}
 
         {/* Download */}
         <button
@@ -261,43 +551,92 @@ function ImageViewer({
             </svg>
           )}
         </button>
+
+        {/* Send annotated image to chat */}
+        {onAnnotatedImage && strokes.length > 0 && (
+          <>
+            <div className="w-px h-5 bg-[var(--color-border)]" />
+            <button
+              onClick={handleExportAnnotated}
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-[var(--color-brand)] text-white text-sm font-medium hover:brightness-110 transition-all"
+              title="Send annotated image to chat"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+              Ask about this
+            </button>
+          </>
+        )}
       </div>
 
       {/* Image container */}
       <div
         ref={containerRef}
-        className="relative max-w-[90vw] max-h-[85vh] overflow-hidden"
+        className="relative overflow-hidden"
+        style={{
+          width: displayDimensions.width,
+          height: displayDimensions.height,
+        }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        style={{ cursor: zoom > 1 ? (isDragging ? "grabbing" : "grab") : "default" }}
       >
+        {/* Image */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          ref={imageRef}
           src={src}
           alt={alt}
-          className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg select-none"
+          className="absolute inset-0 w-full h-full object-contain rounded-lg select-none"
           style={{
-            transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
+            transform: isDrawingMode ? "none" : `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
             transition: isDragging ? "none" : "transform 0.1s ease-out",
+            cursor: isDrawingMode ? "crosshair" : (zoom > 1 ? (isDragging ? "grabbing" : "grab") : "default"),
           }}
           draggable={false}
         />
+
+        {/* Drawing canvas overlay */}
+        {imageLoaded && (
+          <canvas
+            ref={canvasRef}
+            width={imageDimensions.width}
+            height={imageDimensions.height}
+            className="absolute inset-0 w-full h-full rounded-lg"
+            style={{
+              pointerEvents: isDrawingMode ? "auto" : "none",
+              cursor: isDrawingMode ? "crosshair" : "default",
+              transform: isDrawingMode ? "none" : `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
+              transition: isDragging ? "none" : "transform 0.1s ease-out",
+            }}
+          />
+        )}
       </div>
 
-      {/* Alt text / caption */}
-      {alt && alt !== "Generated image" && alt !== "Attached image" && (
+      {/* Drawing mode indicator */}
+      {isDrawingMode && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-[var(--color-brand)]/90 text-white text-sm font-medium backdrop-blur-sm">
+          Drawing mode • Press D or Esc to exit
+        </div>
+      )}
+
+      {/* Alt text / caption (only when not drawing) */}
+      {!isDrawingMode && alt && alt !== "Generated image" && alt !== "Attached image" && !alt.startsWith("Attached image") && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-[var(--color-surface-elevated)]/90 border border-[var(--color-border)] backdrop-blur-sm max-w-[80vw]">
           <p className="text-sm text-[var(--color-text-secondary)] text-center truncate">{alt}</p>
         </div>
       )}
 
       {/* Keyboard shortcuts hint */}
-      <div className="absolute bottom-4 right-4 text-xs text-white/50">
-        <span className="hidden sm:inline">Scroll to zoom • Drag to pan • Esc to close</span>
-      </div>
+      {!isDrawingMode && (
+        <div className="absolute bottom-4 right-4 text-xs text-white/50">
+          <span className="hidden sm:inline">D to draw • Scroll to zoom • Esc to close</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1179,6 +1518,17 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
           enableAudio={speakEnabled} 
           playbackRate={playbackRate}
           onStopTTSRef={stopTTSRef}
+          onAnnotatedImage={(dataUrl) => {
+            // Add annotated image to attached images
+            setAttachedImages((prev) => [
+              ...prev,
+              {
+                id: `annotated_${Date.now()}`,
+                dataUrl,
+                name: "Annotated image",
+              },
+            ]);
+          }}
         />
       </div>
 
@@ -1511,12 +1861,14 @@ function ChatPanel({
   enableAudio,
   playbackRate,
   onStopTTSRef,
+  onAnnotatedImage,
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
   enableAudio: boolean;
   playbackRate: number;
   onStopTTSRef?: React.MutableRefObject<(() => void) | null>;
+  onAnnotatedImage?: (dataUrl: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -1887,6 +2239,7 @@ function ChatPanel({
           src={viewerImage.src}
           alt={viewerImage.alt}
           onClose={closeImageViewer}
+          onAnnotatedImage={onAnnotatedImage}
         />
       )}
     </div>
