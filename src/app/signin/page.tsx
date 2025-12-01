@@ -45,22 +45,7 @@ export default async function SignInPage() {
               Sign in to continue your learning journey
             </p>
 
-            <div className="space-y-3">
-              <SignInButton 
-                provider="google"
-                className="w-full flex items-center justify-center gap-3 rounded-xl bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text)] font-medium py-3.5 transition-colors border border-[var(--color-border)]" 
-              />
-              
-              <SignInButton 
-                provider="github"
-                className="w-full flex items-center justify-center gap-3 rounded-xl bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text)] font-medium py-3.5 transition-colors border border-[var(--color-border)]" 
-              />
-              
-              <SignInButton 
-                provider="discord"
-                className="w-full flex items-center justify-center gap-3 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white font-medium py-3.5 transition-colors" 
-              />
-            </div>
+            <SignInButton className="w-full flex items-center justify-center gap-3 rounded-xl bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text)] font-medium py-3.5 transition-colors border border-[var(--color-border)]" />
 
             <p className="mt-6 text-xs text-center text-[var(--color-text-muted)]">
               By signing in, you agree to our{" "}
