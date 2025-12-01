@@ -38,24 +38,12 @@ function ImageViewer({
   const [currentStroke, setCurrentStroke] = useState<DrawingStroke | null>(null);
   const [brushColor, setBrushColor] = useState("#ef4444"); // Red default
   const [brushWidth, setBrushWidth] = useState(4);
-  const [showColorPicker, setShowColorPicker] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
-  const BRUSH_COLORS = [
-    "#ef4444", // Red
-    "#f97316", // Orange
-    "#eab308", // Yellow
-    "#22c55e", // Green
-    "#3b82f6", // Blue
-    "#8b5cf6", // Purple
-    "#ec4899", // Pink
-    "#ffffff", // White
-    "#000000", // Black
-  ];
 
   // Load image and get dimensions
   useEffect(() => {
@@ -438,35 +426,23 @@ function ImageViewer({
 
         {isDrawingMode && (
           <>
-            {/* Color picker */}
+            {/* Color picker - using native color input for full color wheel */}
             <div className="relative">
-              <button
-                onClick={() => setShowColorPicker(!showColorPicker)}
-                className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
+              <label
+                className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer block"
                 title="Brush color"
               >
                 <div
                   className="w-5 h-5 rounded-full border-2 border-white/50"
                   style={{ backgroundColor: brushColor }}
                 />
-              </button>
-              {showColorPicker && (
-                <div className="absolute top-full left-0 mt-2 p-2 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] shadow-lg grid grid-cols-3 gap-1">
-                  {BRUSH_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => {
-                        setBrushColor(color);
-                        setShowColorPicker(false);
-                      }}
-                      className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
-                        brushColor === color ? "border-white" : "border-transparent"
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              )}
+                <input
+                  type="color"
+                  value={brushColor}
+                  onChange={(e) => setBrushColor(e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </label>
             </div>
 
             {/* Brush size */}
