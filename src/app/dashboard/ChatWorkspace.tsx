@@ -1867,8 +1867,19 @@ function ChatPanel({
 
   const convertMathDelimiters = useCallback((input: string) => {
     return input
-      .replace(/\\\[([\s\S]*?)\\\]/g, (_, content) => `$$${content}$$`)
-      .replace(/\\\(([\s\S]*?)\\\)/g, (_, content) => `$${content}$`);
+      // Convert \[...\] to $$...$$ (block math)
+      .replace(/\\\[([\s\S]*?)\\\]/g, (_, content) => `\n$$${content.trim()}$$\n`)
+      // Convert \(...\) to $...$ (inline math)
+      .replace(/\\\(([\s\S]*?)\\\)/g, (_, content) => `$${content.trim()}$`)
+      // Ensure block math ($$...$$) has proper newlines for remark-math to parse correctly
+      // This handles cases where $$ is not on its own line
+      .replace(/([^\n])\$\$([^$]+)\$\$([^\n])/g, (_, before, content, after) => 
+        `${before}\n$$${content.trim()}$$\n${after}`
+      )
+      // Handle $$ at start of line without preceding newline
+      .replace(/^(\$\$[^$]+\$\$)/gm, (match) => `\n${match}`)
+      // Handle $$ at end without following newline  
+      .replace(/(\$\$[^$]+\$\$)$/gm, (match) => `${match}\n`);
   }, []);
 
   const latestAssistantText = useMemo(() => {
