@@ -85,7 +85,7 @@ const PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
-      { id: "groq/gpt-oss-20b", name: "GPT-OSS 20B", description: "Super fast inference", supportsVision: true },
+      { id: "groq/gpt-oss-20b", name: "GPT-OSS 20B", description: "Super fast inference" },
     ],
   },
   {
@@ -98,7 +98,7 @@ const PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
-      { id: "sambanova/gpt-oss-120b", name: "GPT-OSS 120B", description: "Large open source model", supportsVision: true },
+      { id: "sambanova/gpt-oss-120b", name: "GPT-OSS 120B", description: "Large open source model" },
     ],
   },
   {

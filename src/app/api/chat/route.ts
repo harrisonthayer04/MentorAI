@@ -219,9 +219,6 @@ const VISION_CAPABLE_MODELS: Set<string> = new Set([
   // OpenAI models
   "openai/gpt-5.1",
   "openai/gpt-5-mini",
-  // GPT-OSS models (via Groq/SambaNova)
-  "groq/gpt-oss-20b",
-  "sambanova/gpt-oss-120b",
 ]);
 const DIFFUSION_MODELS: Set<string> = new Set([
   // Empty - OpenRouter routes all image models through chat/completions with modalities
