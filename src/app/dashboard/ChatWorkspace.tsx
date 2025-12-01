@@ -1419,7 +1419,25 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
             messageCacheRef.current.set(threadId, normalizedWithImages);
             return normalizedWithImages;
           }
-          const merged = [...normalizedWithImages, ...pendingLocals].sort((a, b) => a.createdAt - b.createdAt);
+          
+          // Filter out optimistic messages that have already been saved to the server
+          // A message is considered "saved" if there's a server message with the same content
+          // and role, created within a reasonable time window (10 seconds)
+          const trulyPendingLocals = pendingLocals.filter((local) => {
+            const hasServerVersion = normalizedWithImages.some((server) => 
+              server.role === local.role && 
+              server.content === local.content &&
+              Math.abs(server.createdAt - local.createdAt) < 10000 // Within 10 seconds
+            );
+            return !hasServerVersion;
+          });
+          
+          if (trulyPendingLocals.length === 0) {
+            messageCacheRef.current.set(threadId, normalizedWithImages);
+            return normalizedWithImages;
+          }
+          
+          const merged = [...normalizedWithImages, ...trulyPendingLocals].sort((a, b) => a.createdAt - b.createdAt);
           messageCacheRef.current.set(threadId, merged);
           return merged;
         });
