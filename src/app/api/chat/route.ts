@@ -23,13 +23,39 @@ type IncomingMessage = {
 
 // Types for tool-calling compatibility with OpenRouter (OpenAI-style)
 type ToolFunctionCall = { name: string; arguments: string };
-type ToolCall = { id: string; type: "function"; function: ToolFunctionCall };
-type AssistantMessageWithToolCalls = { role: "assistant"; content: string | null; tool_calls: ToolCall[] };
+// ToolCall may include additional fields from providers (e.g., index, thought_signature for Gemini)
+type ToolCall = { 
+  id: string; 
+  type: "function"; 
+  function: ToolFunctionCall;
+  index?: number;
+  [key: string]: unknown; // Allow additional provider-specific fields
+};
+// Reasoning details for Gemini models (must be preserved in tool call loops)
+type ReasoningDetail = { 
+  format?: string; 
+  index?: number; 
+  type?: string; 
+  text?: string; 
+  id?: string;
+  data?: string;
+};
+type AssistantMessageWithToolCalls = { 
+  role: "assistant"; 
+  content: string | null; 
+  tool_calls: ToolCall[];
+  reasoning?: string;
+  reasoning_details?: ReasoningDetail[];
+};
 type AssistantMessageWithFunctionCall = { role: "assistant"; content: string | null; function_call: ToolFunctionCall };
 type ToolMessage = { role: "tool"; content: string; tool_call_id: string; name?: string };
 type MultimodalMessage = { role: "user" | "system"; content: string | ContentPart[] };
 type OpenAIMessage = IncomingMessage | AssistantMessageWithToolCalls | AssistantMessageWithFunctionCall | ToolMessage | MultimodalMessage;
-type ChoiceMessage = Partial<AssistantMessageWithToolCalls & AssistantMessageWithFunctionCall> & { content?: unknown };
+type ChoiceMessage = Partial<AssistantMessageWithToolCalls & AssistantMessageWithFunctionCall> & { 
+  content?: unknown;
+  reasoning?: string;
+  reasoning_details?: ReasoningDetail[];
+};
 type ToolResult = { ok: boolean; error?: string };
 type DebugLogEntry = { timestamp: string; scope: string; detail: string };
 
@@ -517,13 +543,22 @@ export async function POST(req: Request) {
         );
         // Append the assistant message that initiated the tool calls so the provider
         // can associate subsequent tool outputs with these call ids.
+        // IMPORTANT: Preserve reasoning/reasoning_details for Gemini models
         if (msg?.tool_calls) {
           const extractedContent = extractMessageContent(msg?.content);
-          convoMessages.push({
+          const assistantMsg: AssistantMessageWithToolCalls = {
             role: "assistant",
             content: extractedContent || null,
             tool_calls: msg.tool_calls,
-          });
+          };
+          // Preserve reasoning details for Gemini models (required for tool call loops)
+          if (msg?.reasoning) {
+            assistantMsg.reasoning = msg.reasoning;
+          }
+          if (msg?.reasoning_details && Array.isArray(msg.reasoning_details)) {
+            assistantMsg.reasoning_details = msg.reasoning_details;
+          }
+          convoMessages.push(assistantMsg);
         } else if (msg?.function_call) {
           convoMessages.push({
             role: "assistant",
