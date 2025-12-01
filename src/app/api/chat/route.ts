@@ -189,7 +189,8 @@ const MODEL_SLUGS: Record<string, string> = {
   "moonshot/kimi-k2-thinking": "moonshot/kimi-k2-thinking",
   "qwen/qwen3-235b-a22b-2507": "qwen/qwen3-235b-a22b-2507",
   "openai/gpt-oss-120b": "openai/gpt-oss-120b",
-  "deepseek/deepseek-v3.1-terminus": "deepseek/deepseek-v3.1-terminus",
+  "deepseek/deepseek-v3.2": "deepseek/deepseek-v3.2",
+  "prime-intellect/intellect-3": "prime-intellect/intellect-3",
   "z-ai/glm-4.6": "z-ai/glm-4.6",
 };
 

@@ -105,6 +105,16 @@ const IMAGE_QUALITY = 0.7;
 // Maximum base64 size after compression (~500KB)
 const MAX_COMPRESSED_SIZE = 500 * 1024;
 
+// Models that support vision (image inputs)
+const VISION_CAPABLE_MODELS = new Set([
+  "x-ai/grok-4-fast",
+  "gemini-2.5-flash-lite",
+  "gemini-3-pro-preview",
+  "anthropic/claude-opus-4.5",
+  "anthropic/claude-sonnet-4.5",
+  "anthropic/claude-haiku-4.5",
+]);
+
 // Compress/resize image to reduce payload size
 function compressImage(dataUrl: string, maxDimension: number = MAX_IMAGE_DIMENSION, quality: number = IMAGE_QUALITY): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -223,6 +233,16 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
     return debugLogsRef.current.get(threadId)?.length ?? 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, debugLogVersion]);
+
+  // Check if current model supports vision (image inputs)
+  const modelSupportsVision = useMemo(() => {
+    return VISION_CAPABLE_MODELS.has(modelId);
+  }, [modelId]);
+
+  // Check if send button should be disabled due to unsupported images
+  const imagesBlockSend = useMemo(() => {
+    return attachedImages.length > 0 && !modelSupportsVision;
+  }, [attachedImages.length, modelSupportsVision]);
 
   const handleDownloadLogs = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -963,7 +983,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
                     <option value="moonshot/kimi-k2-thinking">Kimi K2 Thinking</option>
                     <option value="qwen/qwen3-235b-a22b-2507">Qwen3 235B A22B 2507</option>
                     <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
-                    <option value="deepseek/deepseek-v3.1-terminus">DeepSeek V3.1 Terminus</option>
+                    <option value="deepseek/deepseek-v3.2">DeepSeek V3.2</option>
+                    <option value="prime-intellect/intellect-3">Prime Intellect Intellect 3</option>
                     <option value="z-ai/glm-4.6">GLM 4.6</option>
                   </select>
                 </div>
@@ -1154,25 +1175,34 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               </button>
 
               {/* Send button */}
-              <button
-                type="submit"
-                disabled={!threadId || (!inputValue.trim() && attachedImages.length === 0) || isLoading}
-                className="p-2 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: 'var(--color-brand)' }}
-                onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.filter = 'brightness(1.1)'; }}
-                onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
-              >
-                {isLoading ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" className="animate-spin">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="30 70" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
+              <div className="relative group">
+                <button
+                  type="submit"
+                  disabled={!threadId || (!inputValue.trim() && attachedImages.length === 0) || isLoading || imagesBlockSend}
+                  className="p-2 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--color-brand)' }}
+                  onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                  onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
+                >
+                  {isLoading ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" className="animate-spin">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="30 70" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13" />
+                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                  )}
+                </button>
+                {imagesBlockSend && (
+                  <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-64 z-50">
+                    <div className="bg-[var(--color-surface-elevated)] border border-[var(--color-border)] rounded-lg px-3 py-2 shadow-lg text-xs text-[var(--color-text-secondary)]">
+                      The selected model does not support image inputs. Please choose Grok, Gemini, or Claude models to send images.
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
             </div>
           </form>
 
