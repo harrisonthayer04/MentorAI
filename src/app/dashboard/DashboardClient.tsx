@@ -11,6 +11,7 @@ type ChatThread = {
   id: string;
   title: string;
   createdAt: number;
+  updatedAt: number;
 };
 
 export default function DashboardClient() {
@@ -29,12 +30,13 @@ export default function DashboardClient() {
         const res = await fetch("/api/conversations", { cache: "no-store" });
         if (!res.ok) return;
         const data = (await res.json()) as {
-          conversations: Array<{ id: string; title: string; createdAt: string | number }>;
+          conversations: Array<{ id: string; title: string; createdAt: string | number; updatedAt: string | number }>;
         };
         if (cancelled) return;
         const normalized = (data.conversations || []).map((c) => ({
           ...c,
           createdAt: new Date(c.createdAt as unknown as string | number).getTime(),
+          updatedAt: new Date(c.updatedAt as unknown as string | number).getTime(),
         })) as ChatThread[];
         setChats(normalized);
         const rawSelected = localStorage.getItem("bm_selected_chat");
@@ -116,7 +118,7 @@ export default function DashboardClient() {
   }, [csrfToken]);
 
   const sortedChats = useMemo(
-    () => [...chats].sort((a, b) => b.createdAt - a.createdAt),
+    () => [...chats].sort((a, b) => b.updatedAt - a.updatedAt),
     [chats]
   );
 
@@ -134,11 +136,12 @@ export default function DashboardClient() {
         }
         if (!res.ok) return;
         const data = (await res.json()) as {
-          conversation: { id: string; title: string; createdAt: string | number };
+          conversation: { id: string; title: string; createdAt: string | number; updatedAt: string | number };
         };
         const normalized = {
           ...data.conversation,
           createdAt: new Date(data.conversation.createdAt as unknown as string | number).getTime(),
+          updatedAt: new Date(data.conversation.updatedAt as unknown as string | number).getTime(),
         } as ChatThread;
         setChats((prev) => [normalized, ...prev]);
         setSelectedChatId(normalized.id);
@@ -176,11 +179,12 @@ export default function DashboardClient() {
         }
         if (!res.ok) return;
         const data = (await res.json()) as {
-          conversation: { id: string; title: string; createdAt: string | number };
+          conversation: { id: string; title: string; createdAt: string | number; updatedAt: string | number };
         };
         const normalized = {
           ...data.conversation,
           createdAt: new Date(data.conversation.createdAt as unknown as string | number).getTime(),
+          updatedAt: new Date(data.conversation.updatedAt as unknown as string | number).getTime(),
         } as ChatThread;
         setChats([normalized]);
         setSelectedChatId(normalized.id);
@@ -313,10 +317,9 @@ export default function DashboardClient() {
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-sm font-medium">{chat.title}</div>
                       <div className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                        {new Date(chat.createdAt).toLocaleString(undefined, {
+                        {new Date(chat.updatedAt).toLocaleString(undefined, {
                           month: 'short',
                           day: 'numeric',
-                          year: 'numeric',
                           hour: 'numeric',
                           minute: '2-digit',
                           hour12: true

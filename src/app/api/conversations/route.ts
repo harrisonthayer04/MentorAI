@@ -18,11 +18,11 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { title } = (await req.json()) as { title?: string };
-  const now = new Date();
   const conversation = await prisma.conversation.create({
     data: {
       userId: session.user.id,
-      title: title && title.trim().length ? title.trim() : `New chat ${now.toLocaleTimeString()}`,
+      // Use a simple title - the AI will rename it based on the first message
+      title: title && title.trim().length ? title.trim() : "New chat",
     },
     select: { id: true, title: true, createdAt: true, updatedAt: true },
   });
