@@ -98,13 +98,15 @@ const DEBUG_EVENT_NAME = "bm_debug_mode_changed";
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 // Supported image types
 const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-// Target max dimension for compressed images
-const MAX_IMAGE_DIMENSION = 1024;
-// Target quality for JPEG compression
-const IMAGE_QUALITY = 0.8;
+// Target max dimension for compressed images (reduced to ensure smaller payloads)
+const MAX_IMAGE_DIMENSION = 768;
+// Target quality for JPEG compression (reduced for smaller size)
+const IMAGE_QUALITY = 0.7;
+// Maximum base64 size after compression (~500KB)
+const MAX_COMPRESSED_SIZE = 500 * 1024;
 
 // Compress/resize image to reduce payload size
-function compressImage(dataUrl: string, maxDimension: number = MAX_IMAGE_DIMENSION): Promise<string> {
+function compressImage(dataUrl: string, maxDimension: number = MAX_IMAGE_DIMENSION, quality: number = IMAGE_QUALITY): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -135,7 +137,32 @@ function compressImage(dataUrl: string, maxDimension: number = MAX_IMAGE_DIMENSI
       
       // Convert to JPEG for better compression (unless it's a GIF which might be animated)
       const mimeType = dataUrl.startsWith("data:image/gif") ? "image/png" : "image/jpeg";
-      const compressed = canvas.toDataURL(mimeType, IMAGE_QUALITY);
+      let compressed = canvas.toDataURL(mimeType, quality);
+      
+      // If still too large, reduce quality further
+      let currentQuality = quality;
+      while (compressed.length > MAX_COMPRESSED_SIZE && currentQuality > 0.3) {
+        currentQuality -= 0.1;
+        compressed = canvas.toDataURL(mimeType, currentQuality);
+      }
+      
+      // If still too large after quality reduction, reduce dimensions
+      if (compressed.length > MAX_COMPRESSED_SIZE) {
+        const scaleFactor = Math.sqrt(MAX_COMPRESSED_SIZE / compressed.length);
+        const newWidth = Math.round(width * scaleFactor);
+        const newHeight = Math.round(height * scaleFactor);
+        
+        const smallerCanvas = document.createElement("canvas");
+        smallerCanvas.width = newWidth;
+        smallerCanvas.height = newHeight;
+        const smallerCtx = smallerCanvas.getContext("2d");
+        if (smallerCtx) {
+          smallerCtx.drawImage(canvas, 0, 0, newWidth, newHeight);
+          compressed = smallerCanvas.toDataURL(mimeType, 0.6);
+        }
+      }
+      
+      console.log(`[Image Compression] Original: ${(dataUrl.length / 1024).toFixed(1)}KB, Compressed: ${(compressed.length / 1024).toFixed(1)}KB`);
       resolve(compressed);
     };
     img.onerror = () => reject(new Error("Failed to load image"));
@@ -389,21 +416,35 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
         return { role, content };
       });
 
+      const requestBody = JSON.stringify({
+        modelId,
+        imageModelId,
+        messages: [
+          ...historyMessages,
+          { role: "user", content: messageContent },
+        ],
+        conversationId: threadId,
+        debug: debugMode,
+      });
+      
+      // Log payload size for debugging
+      const payloadSizeKB = (requestBody.length / 1024).toFixed(1);
+      console.log(`[Chat Request] Payload size: ${payloadSizeKB}KB`);
+      addLocalDebugEntry("client", `Sending request (${payloadSizeKB}KB payload)`, targetThreadId);
+      
+      // Don't use keepalive for large payloads (it has a 64KB limit in some browsers)
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          modelId,
-          imageModelId,
-          messages: [
-            ...historyMessages,
-            { role: "user", content: messageContent },
-          ],
-          conversationId: threadId,
-          debug: debugMode,
-        }),
-        keepalive: true,
+        body: requestBody,
+        // keepalive removed - it limits body size to 64KB
       });
+      
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(`Server error (${resp.status}): ${errorText.slice(0, 200)}`);
+      }
+      
       const payload: unknown = await resp.json();
       const { content: assistantContent, error: assistantError, debugLog } = parseChatApiResponse(payload);
       if (targetThreadId && debugLog.length > 0) {
