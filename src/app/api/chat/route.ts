@@ -182,12 +182,20 @@ const MODEL_SLUGS: Record<string, string> = {
   "qwen/qwen3-235b-a22b-2507": "qwen/qwen3-235b-a22b-2507",
   "openai/gpt-5.1": "openai/gpt-5.1",
   "openai/gpt-5-mini": "openai/gpt-5-mini",
-  "groq/gpt-oss-20b": "groq/gpt-oss-20b",
-  "sambanova/gpt-oss-120b": "sambanova/gpt-oss-120b",
+  // GPT-OSS models with specific provider routing
+  "groq/gpt-oss-20b": "openai/gpt-oss-20b",
+  "sambanova/gpt-oss-120b": "openai/gpt-oss-120b",
   "deepseek/deepseek-r1-0528": "deepseek/deepseek-r1-0528",
   "deepseek/deepseek-v3.2": "deepseek/deepseek-v3.2",
   "prime-intellect/intellect-3": "prime-intellect/intellect-3",
   "z-ai/glm-4.6": "z-ai/glm-4.6",
+};
+
+// Provider routing for models that need specific providers
+// Maps the frontend model ID to the provider slug to use
+const MODEL_PROVIDER_ROUTING: Record<string, string[]> = {
+  "groq/gpt-oss-20b": ["Groq"],
+  "sambanova/gpt-oss-120b": ["SambaNova"],
 };
 
 const IMAGE_MODEL_SLUGS: Record<string, string> = {
@@ -211,9 +219,8 @@ const VISION_CAPABLE_MODELS: Set<string> = new Set([
   // OpenAI models
   "openai/gpt-5.1",
   "openai/gpt-5-mini",
-  // Groq models
+  // GPT-OSS models (via Groq/SambaNova)
   "groq/gpt-oss-20b",
-  // SambaNova models
   "sambanova/gpt-oss-120b",
 ]);
 const DIFFUSION_MODELS: Set<string> = new Set([
@@ -500,6 +507,21 @@ export async function POST(req: Request) {
         iteration: i + 1,
         convoMessagesCount: convoMessages.length,
       });
+      // Build request body with optional provider routing
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages: convoMessages,
+        tools,
+        tool_choice: "auto",
+        temperature: 0.2,
+      };
+      
+      // Add provider routing if specified for this model
+      const providerOrder = MODEL_PROVIDER_ROUTING[modelId];
+      if (providerOrder) {
+        requestBody.provider = { order: providerOrder };
+      }
+      
       const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -508,13 +530,7 @@ export async function POST(req: Request) {
           "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
           "X-Title": "MentorAI",
         },
-        body: JSON.stringify({
-          model,
-          messages: convoMessages,
-          tools,
-          tool_choice: "auto",
-          temperature: 0.2,
-        }),
+        body: JSON.stringify(requestBody),
       });
       pushDebug("llm_http_status", { iteration: i + 1, status: resp.status });
 
