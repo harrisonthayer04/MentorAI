@@ -72,7 +72,33 @@ const PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
-      { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B", description: "Open source GPT model", supportsVision: true },
+      { id: "openai/gpt-5.1", name: "GPT-5.1", description: "Latest flagship model", supportsVision: true },
+      { id: "openai/gpt-5-mini", name: "GPT-5 Mini", description: "Fast and efficient", supportsVision: true },
+    ],
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+    models: [
+      { id: "groq/gpt-oss-20b", name: "GPT-OSS 20B", description: "Super fast inference", supportsVision: true },
+    ],
+  },
+  {
+    id: "sambanova",
+    name: "SambaNova",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" fill="none" />
+        <path d="M7 12h10M12 7v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    ),
+    models: [
+      { id: "sambanova/gpt-oss-120b", name: "GPT-OSS 120B", description: "Large open source model", supportsVision: true },
     ],
   },
   {
@@ -85,6 +111,7 @@ const PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
+      { id: "deepseek/deepseek-r1-0528", name: "DeepSeek R1", description: "Reasoning model" },
       { id: "deepseek/deepseek-v3.2", name: "DeepSeek V3.2", description: "Latest DeepSeek model" },
     ],
   },

@@ -180,7 +180,11 @@ const MODEL_SLUGS: Record<string, string> = {
   "anthropic/claude-haiku-4.5": "anthropic/claude-haiku-4.5",
   "moonshot/kimi-k2-thinking": "moonshot/kimi-k2-thinking",
   "qwen/qwen3-235b-a22b-2507": "qwen/qwen3-235b-a22b-2507",
-  "openai/gpt-oss-120b": "openai/gpt-oss-120b",
+  "openai/gpt-5.1": "openai/gpt-5.1",
+  "openai/gpt-5-mini": "openai/gpt-5-mini",
+  "groq/gpt-oss-20b": "groq/gpt-oss-20b",
+  "sambanova/gpt-oss-120b": "sambanova/gpt-oss-120b",
+  "deepseek/deepseek-r1-0528": "deepseek/deepseek-r1-0528",
   "deepseek/deepseek-v3.2": "deepseek/deepseek-v3.2",
   "prime-intellect/intellect-3": "prime-intellect/intellect-3",
   "z-ai/glm-4.6": "z-ai/glm-4.6",
@@ -205,7 +209,12 @@ const VISION_CAPABLE_MODELS: Set<string> = new Set([
   // X.AI Grok models
   "x-ai/grok-4-fast",
   // OpenAI models
-  "openai/gpt-oss-120b",
+  "openai/gpt-5.1",
+  "openai/gpt-5-mini",
+  // Groq models
+  "groq/gpt-oss-20b",
+  // SambaNova models
+  "sambanova/gpt-oss-120b",
 ]);
 const DIFFUSION_MODELS: Set<string> = new Set([
   // Empty - OpenRouter routes all image models through chat/completions with modalities
