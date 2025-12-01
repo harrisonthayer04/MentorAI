@@ -130,14 +130,6 @@ function extractTextContentForStorage(content: string | ContentPart[]): string {
     .join("\n");
 }
 
-// Check if message content contains images
-function hasImageContent(content: string | ContentPart[]): boolean {
-  if (typeof content === "string") {
-    return false;
-  }
-  return content.some((part) => part.type === "image_url");
-}
-
 // Format message content for the API (convert to multimodal format if needed)
 function formatMessageContent(
   content: string | ContentPart[],

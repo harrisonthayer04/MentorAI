@@ -1914,18 +1914,20 @@ function markdownComponents(role: "user" | "assistant", onImageClick?: (src: str
         {...props}
       />
     ),
-    // eslint-disable-next-line @next/next/no-img-element
-    img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt={alt || "Generated image"}
-        className="max-w-full h-auto rounded-lg my-2 border border-[var(--color-border)] cursor-pointer hover:opacity-90 transition-opacity"
-        loading="lazy"
-        onClick={() => onImageClick?.(src || "", alt || "Image")}
-        {...props}
-      />
-    ),
+    img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+      const srcString = typeof src === "string" ? src : "";
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={alt || "Generated image"}
+          className="max-w-full h-auto rounded-lg my-2 border border-[var(--color-border)] cursor-pointer hover:opacity-90 transition-opacity"
+          loading="lazy"
+          onClick={() => onImageClick?.(srcString, alt || "Image")}
+          {...props}
+        />
+      );
+    },
     strong: (props: React.HTMLAttributes<HTMLElement>) => <strong className="font-semibold" {...props} />,
     em: (props: React.HTMLAttributes<HTMLElement>) => <em className="italic" {...props} />,
     code: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => (
