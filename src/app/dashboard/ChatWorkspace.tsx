@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import PlayTTS from "../components/PlayTTS";
+import ModelSelector, { ModelSelectorButton, PROVIDERS } from "../components/ModelSelector";
 
 // Image Viewer Modal Component
 function ImageViewer({
@@ -399,15 +400,10 @@ const IMAGE_QUALITY = 0.7;
 // Maximum base64 size after compression (~500KB)
 const MAX_COMPRESSED_SIZE = 500 * 1024;
 
-// Models that support vision (image inputs)
-const VISION_CAPABLE_MODELS = new Set([
-  "x-ai/grok-4-fast",
-  "gemini-2.5-flash-lite",
-  "gemini-3-pro-preview",
-  "anthropic/claude-opus-4.5",
-  "anthropic/claude-sonnet-4.5",
-  "anthropic/claude-haiku-4.5",
-]);
+// Models that support vision (image inputs) - derived from PROVIDERS
+const VISION_CAPABLE_MODELS = new Set(
+  PROVIDERS.flatMap((p) => p.models.filter((m) => m.supportsVision).map((m) => m.id))
+);
 
 // Compress/resize image to reduce payload size
 function compressImage(dataUrl: string, maxDimension: number = MAX_IMAGE_DIMENSION, quality: number = IMAGE_QUALITY): Promise<string> {
@@ -488,6 +484,8 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
   const [showSettings, setShowSettings] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [showChatModelSelector, setShowChatModelSelector] = useState(false);
+  const [showImageModelSelector, setShowImageModelSelector] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const debugLogsRef = useRef<Map<string, DebugLogEntry[]>>(new Map());
@@ -1261,39 +1259,21 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">Chat Model</label>
-                  <select
-                    value={modelId}
-                    onChange={(e) => setModelId(e.target.value)}
-                    className="w-full rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/50"
-                  >
-                    <option value="minimax/minimax-m2:free">MiniMax M2 Free</option>
-                    <option value="x-ai/grok-4-fast">Grok 4 Fast</option>
-                    <option value="x-ai/grok-code-fast-1">Grok Code Fast 1</option>
-                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-                    <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-                    <option value="anthropic/claude-opus-4.5">Claude Opus 4.5</option>
-                    <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
-                    <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5</option>
-                    <option value="moonshot/kimi-k2-thinking">Kimi K2 Thinking</option>
-                    <option value="qwen/qwen3-235b-a22b-2507">Qwen3 235B A22B 2507</option>
-                    <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
-                    <option value="deepseek/deepseek-v3.2">DeepSeek V3.2</option>
-                    <option value="prime-intellect/intellect-3">Prime Intellect Intellect 3</option>
-                    <option value="z-ai/glm-4.6">GLM 4.6</option>
-                  </select>
+                  <ModelSelectorButton
+                    modelId={modelId}
+                    onClick={() => setShowChatModelSelector(true)}
+                    mode="chat"
+                    className="w-full justify-between"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">Image Model</label>
-                  <select
-                    value={imageModelId}
-                    onChange={(e) => setImageModelId(e.target.value)}
-                    className="w-full rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]/50"
-                  >
-                    <option value="google/gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
-                    <option value="google/gemini-3-pro-image-preview">Gemini 3 Pro Image Preview</option>
-                    <option value="openai/gpt-5-image">GPT-5 Image</option>
-                    <option value="black-forest-labs/flux.2-pro">FLUX.2 Pro</option>
-                  </select>
+                  <ModelSelectorButton
+                    modelId={imageModelId}
+                    onClick={() => setShowImageModelSelector(true)}
+                    mode="image"
+                    className="w-full justify-between"
+                  />
                 </div>
               </div>
 
@@ -1505,6 +1485,22 @@ export default function ChatWorkspace({ threadId }: { threadId: string | null })
           </p>
         </div>
       </div>
+
+      {/* Model Selector Modals */}
+      <ModelSelector
+        isOpen={showChatModelSelector}
+        onClose={() => setShowChatModelSelector(false)}
+        selectedModelId={modelId}
+        onSelectModel={setModelId}
+        mode="chat"
+      />
+      <ModelSelector
+        isOpen={showImageModelSelector}
+        onClose={() => setShowImageModelSelector(false)}
+        selectedModelId={imageModelId}
+        onSelectModel={setImageModelId}
+        mode="image"
+      />
     </div>
   );
 }
