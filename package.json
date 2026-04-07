@@ -18,7 +18,7 @@
     "docker": "^1.0.0",
     "dotenv": "^17.2.1",
     "katex": "0.16.22",
-    "next": "15.4.5",
+    "next": "^15.5.14",
     "next-auth": "^4.24.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -34,7 +34,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.4.5",
+    "eslint-config-next": "^15.5.14",
     "prisma": "^6.14.0",
     "tailwindcss": "^4",
     "typescript": "^5"
