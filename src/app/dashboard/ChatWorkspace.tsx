@@ -786,8 +786,8 @@ function compressImage(dataUrl: string, maxDimension: number = MAX_IMAGE_DIMENSI
 }
 
 export default function ChatWorkspace({ threadId }: { threadId: string | null }) {
-  const [modelId, setModelId] = useState<string>("gemini-2.5-flash-lite");
-  const [imageModelId, setImageModelId] = useState<string>("google/gemini-2.5-flash-image");
+  const [modelId, setModelId] = useState<string>("anthropic/claude-sonnet-4.6");
+  const [imageModelId, setImageModelId] = useState<string>("google/gemini-3.1-flash-image-preview");
   const [inputValue, setInputValue] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);

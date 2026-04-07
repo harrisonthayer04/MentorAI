@@ -29,8 +29,8 @@ const PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
-      { id: "anthropic/claude-opus-4.5", name: "Claude Opus 4.5", description: "Most capable, best for complex tasks", supportsVision: true },
-      { id: "anthropic/claude-sonnet-4.5", name: "Claude Sonnet 4.5", description: "Balanced performance and speed", supportsVision: true },
+      { id: "anthropic/claude-sonnet-4.6", name: "Claude Sonnet 4.6", description: "Balanced flagship for most tasks", supportsVision: true },
+      { id: "anthropic/claude-opus-4.6", name: "Claude Opus 4.6", description: "Most capable for complex reasoning", supportsVision: true },
       { id: "anthropic/claude-haiku-4.5", name: "Claude Haiku 4.5", description: "Fast and efficient", supportsVision: true },
     ],
   },
@@ -46,8 +46,9 @@ const PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
-      { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite", description: "Fast and efficient", supportsVision: true },
-      { id: "gemini-3-pro-preview", name: "Gemini 3 Pro Preview", description: "Latest Gemini model", supportsVision: true },
+      { id: "google/gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview", description: "Latest high-capability Gemini model", supportsVision: true },
+      { id: "google/gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash Lite Preview", description: "Latest fast and efficient Gemini", supportsVision: true },
+      { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Stable low-latency multimodal model", supportsVision: true },
     ],
   },
   {
@@ -59,8 +60,9 @@ const PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
-      { id: "x-ai/grok-4-fast", name: "Grok 4 Fast", description: "Fast and capable", supportsVision: true },
-      { id: "x-ai/grok-code-fast-1", name: "Grok Code Fast 1", description: "Optimized for coding" },
+      { id: "x-ai/grok-4.20", name: "Grok 4.20", description: "Latest flagship Grok model", supportsVision: true },
+      { id: "x-ai/grok-4.20-multi-agent", name: "Grok 4.20 Multi-Agent", description: "Optimized for parallel agent workflows", supportsVision: true },
+      { id: "x-ai/grok-4.1-fast", name: "Grok 4.1 Fast", description: "Lower-latency Grok for everyday tasks", supportsVision: true },
     ],
   },
   {
@@ -72,63 +74,10 @@ const PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
-      { id: "openai/gpt-5.1", name: "GPT-5.1", description: "Latest flagship model", supportsVision: true },
-      { id: "openai/gpt-5-mini", name: "GPT-5 Mini", description: "Fast and efficient", supportsVision: true },
-    ],
-  },
-  {
-    id: "groq",
-    name: "Groq",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-    models: [
-      { id: "groq/gpt-oss-20b", name: "GPT-OSS 20B", description: "Super fast inference" },
-    ],
-  },
-  {
-    id: "sambanova",
-    name: "SambaNova",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" fill="none" />
-        <path d="M7 12h10M12 7v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    ),
-    models: [
-      { id: "sambanova/gpt-oss-120b", name: "GPT-OSS 120B", description: "Large open source model" },
-    ],
-  },
-  {
-    id: "deepseek",
-    name: "DeepSeek",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" />
-        <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-      </svg>
-    ),
-    models: [
-      { id: "deepseek/deepseek-r1-0528", name: "DeepSeek R1", description: "Reasoning model" },
-      { id: "deepseek/deepseek-v3.2", name: "DeepSeek V3.2", description: "Latest DeepSeek model" },
-    ],
-  },
-  {
-    id: "opensource",
-    name: "Open Source",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-      </svg>
-    ),
-    models: [
-      { id: "minimax/minimax-m2:free", name: "MiniMax M2", description: "Free tier available", isFree: true },
-      { id: "moonshot/kimi-k2-thinking", name: "Kimi K2 Thinking", description: "Advanced reasoning" },
-      { id: "qwen/qwen3-235b-a22b-2507", name: "Qwen3 235B", description: "Large parameter model" },
-      { id: "prime-intellect/intellect-3", name: "Intellect 3", description: "Prime Intellect model" },
-      { id: "z-ai/glm-4.6", name: "GLM 4.6", description: "Zhipu AI model" },
+      { id: "openai/gpt-5.4", name: "GPT-5.4", description: "Latest flagship model", supportsVision: true },
+      { id: "openai/gpt-5.4-pro", name: "GPT-5.4 Pro", description: "Most advanced reasoning and coding", supportsVision: true },
+      { id: "openai/gpt-5.4-mini", name: "GPT-5.4 Mini", description: "Fast and cost-efficient", supportsVision: true },
+      { id: "openai/gpt-5.4-nano", name: "GPT-5.4 Nano", description: "Lowest-latency lightweight option", supportsVision: true },
     ],
   },
 ];
@@ -147,8 +96,8 @@ const IMAGE_PROVIDERS: Provider[] = [
       </svg>
     ),
     models: [
-      { id: "google/gemini-2.5-flash-image", name: "Gemini 2.5 Flash Image", description: "Fast image generation", supportsImages: true },
-      { id: "google/gemini-3-pro-image-preview", name: "Gemini 3 Pro Image", description: "High quality images", supportsImages: true },
+      { id: "google/gemini-3.1-flash-image-preview", name: "Gemini 3.1 Flash Image Preview", description: "Latest Google image model", supportsImages: true },
+      { id: "google/gemini-2.5-flash-image", name: "Gemini 2.5 Flash Image", description: "Stable image generation", supportsImages: true },
     ],
   },
   {
@@ -161,18 +110,7 @@ const IMAGE_PROVIDERS: Provider[] = [
     ),
     models: [
       { id: "openai/gpt-5-image", name: "GPT-5 Image", description: "OpenAI image generation", supportsImages: true },
-    ],
-  },
-  {
-    id: "flux",
-    name: "Black Forest Labs",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-    models: [
-      { id: "black-forest-labs/flux.2-pro", name: "FLUX.2 Pro", description: "High quality diffusion model", supportsImages: true },
+      { id: "openai/gpt-5-image-mini", name: "GPT-5 Image Mini", description: "Lower-cost image generation", supportsImages: true },
     ],
   },
 ];

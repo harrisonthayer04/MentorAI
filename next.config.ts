@@ -6,6 +6,9 @@ const isVercel = !!process.env.VERCEL;
 const nextConfig: NextConfig = {
   experimental: {
     authInterrupts: true,
+    serverActions: {
+      bodySizeLimit: "20mb",
+    },
   },
   // Use a custom distDir only in local/dev to avoid iCloud/Dropbox sync issues.
   // Vercel expects the default `.next` output.

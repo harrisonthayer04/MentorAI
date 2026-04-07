@@ -170,55 +170,47 @@ function parseResponseContent(rawContent: string): { speech: string; display: st
 }
 
 const MODEL_SLUGS: Record<string, string> = {
-  "minimax/minimax-m2:free": "minimax/minimax-m2:free",
-  "x-ai/grok-4-fast": "x-ai/grok-4-fast",
-  "x-ai/grok-code-fast-1": "x-ai/grok-code-fast-1",
-  "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
-  "gemini-3-pro-preview": "google/gemini-3-pro-preview",
-  "anthropic/claude-opus-4.5": "anthropic/claude-opus-4.5",
-  "anthropic/claude-sonnet-4.5": "anthropic/claude-sonnet-4.5",
+  "anthropic/claude-sonnet-4.6": "anthropic/claude-sonnet-4.6",
+  "anthropic/claude-opus-4.6": "anthropic/claude-opus-4.6",
   "anthropic/claude-haiku-4.5": "anthropic/claude-haiku-4.5",
-  "moonshot/kimi-k2-thinking": "moonshot/kimi-k2-thinking",
-  "qwen/qwen3-235b-a22b-2507": "qwen/qwen3-235b-a22b-2507",
-  "openai/gpt-5.1": "openai/gpt-5.1",
-  "openai/gpt-5-mini": "openai/gpt-5-mini",
-  // GPT-OSS models with specific provider routing
-  "groq/gpt-oss-20b": "openai/gpt-oss-20b",
-  "sambanova/gpt-oss-120b": "openai/gpt-oss-120b",
-  "deepseek/deepseek-r1-0528": "deepseek/deepseek-r1-0528",
-  "deepseek/deepseek-v3.2": "deepseek/deepseek-v3.2",
-  "prime-intellect/intellect-3": "prime-intellect/intellect-3",
-  "z-ai/glm-4.6": "z-ai/glm-4.6",
-};
-
-// Provider routing for models that need specific providers
-// Maps the frontend model ID to the provider slug to use
-const MODEL_PROVIDER_ROUTING: Record<string, string[]> = {
-  "groq/gpt-oss-20b": ["Groq"],
-  "sambanova/gpt-oss-120b": ["SambaNova"],
+  "google/gemini-3.1-pro-preview": "google/gemini-3.1-pro-preview",
+  "google/gemini-3.1-flash-lite-preview": "google/gemini-3.1-flash-lite-preview",
+  "google/gemini-2.5-flash": "google/gemini-2.5-flash",
+  "openai/gpt-5.4": "openai/gpt-5.4",
+  "openai/gpt-5.4-pro": "openai/gpt-5.4-pro",
+  "openai/gpt-5.4-mini": "openai/gpt-5.4-mini",
+  "openai/gpt-5.4-nano": "openai/gpt-5.4-nano",
+  "x-ai/grok-4.20": "x-ai/grok-4.20",
+  "x-ai/grok-4.20-multi-agent": "x-ai/grok-4.20-multi-agent",
+  "x-ai/grok-4.1-fast": "x-ai/grok-4.1-fast",
 };
 
 const IMAGE_MODEL_SLUGS: Record<string, string> = {
-  "google/gemini-3-pro-image-preview": "google/gemini-3-pro-image-preview",
+  "google/gemini-3.1-flash-image-preview": "google/gemini-3.1-flash-image-preview",
   "google/gemini-2.5-flash-image": "google/gemini-2.5-flash-image",
   "openai/gpt-5-image": "openai/gpt-5-image",
-  "black-forest-labs/flux.2-pro": "black-forest-labs/flux.2-pro",
+  "openai/gpt-5-image-mini": "openai/gpt-5-image-mini",
 };
 
 // Models that support vision (image input) - matches models in MODEL_SLUGS
 const VISION_CAPABLE_MODELS: Set<string> = new Set([
-  // Anthropic Claude models (all Claude 3+ support vision)
-  "anthropic/claude-opus-4.5",
-  "anthropic/claude-sonnet-4.5",
+  // Anthropic Claude models
+  "anthropic/claude-sonnet-4.6",
+  "anthropic/claude-opus-4.6",
   "anthropic/claude-haiku-4.5",
   // Google Gemini models
-  "google/gemini-2.5-flash-lite",
-  "google/gemini-3-pro-preview",
+  "google/gemini-3.1-pro-preview",
+  "google/gemini-3.1-flash-lite-preview",
+  "google/gemini-2.5-flash",
   // X.AI Grok models
-  "x-ai/grok-4-fast",
+  "x-ai/grok-4.20",
+  "x-ai/grok-4.20-multi-agent",
+  "x-ai/grok-4.1-fast",
   // OpenAI models
-  "openai/gpt-5.1",
-  "openai/gpt-5-mini",
+  "openai/gpt-5.4",
+  "openai/gpt-5.4-pro",
+  "openai/gpt-5.4-mini",
+  "openai/gpt-5.4-nano",
 ]);
 const DIFFUSION_MODELS: Set<string> = new Set([
   // Empty - OpenRouter routes all image models through chat/completions with modalities
@@ -278,7 +270,7 @@ Example response:
         "X-Title": "MentorAI",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-opus-4.5", 
+        model: "anthropic/claude-sonnet-4.6",
         messages: [{ role: "user", content: consolidationPrompt }],
         temperature: 0.1,
       }),
@@ -417,7 +409,7 @@ export async function POST(req: Request) {
     pushDebug("system_prompt", systemPrompt);
 
     // Resolve image model slug
-    const imageModel = imageModelId ? (IMAGE_MODEL_SLUGS[imageModelId] ?? imageModelId) : "google/gemini-2.5-flash-image";
+    const imageModel = imageModelId ? (IMAGE_MODEL_SLUGS[imageModelId] ?? imageModelId) : "google/gemini-3.1-flash-image-preview";
     pushDebug("models_resolved", { chatModel: model, imageModel });
 
     // Define tools for the model to call
@@ -512,12 +504,6 @@ export async function POST(req: Request) {
         tool_choice: "auto",
         temperature: 0.2,
       };
-      
-      // Add provider routing if specified for this model
-      const providerOrder = MODEL_PROVIDER_ROUTING[modelId];
-      if (providerOrder) {
-        requestBody.provider = { order: providerOrder };
-      }
       
       const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
