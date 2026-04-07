@@ -2,7 +2,7 @@
 
 A modern AI-powered teaching assistant with voice interaction, image generation, persistent memory, and multi-model support.
 
-![Next.js](https://img.shields.io/badge/Next.js-15.4-black?logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-15.5-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.0-38B2AC?logo=tailwind-css)
 ![Prisma](https://img.shields.io/badge/Prisma-6.14-2D3748?logo=prisma)
@@ -11,15 +11,14 @@ A modern AI-powered teaching assistant with voice interaction, image generation,
 
 ### Multi-Model AI Chat
 - Support for multiple AI models via OpenRouter:
-  - **Anthropic**: Claude Opus 4.5, Sonnet 4.5, Haiku 4.5
-  - **Google**: Gemini 2.5 Flash Lite, Gemini 3 Pro Preview
-  - **xAI**: Grok 4 Fast, Grok Code Fast 1
-  - **DeepSeek**: DeepSeek V3.2
-  - **Others**: Qwen3 235B, MiniMax M2, GLM 4.6, Prime Intellect 3
+  - **Anthropic**: Claude Sonnet 4.6, Claude Opus 4.6, Claude Haiku 4.5
+  - **Google**: Gemini 3.1 Pro Preview, Gemini 3.1 Flash Lite Preview, Gemini 2.5 Flash
+  - **OpenAI**: GPT-5.4, GPT-5.4 Mini, GPT-5.4 Nano
+  - **xAI**: Grok 4.20, Grok 4.20 Multi-Agent, Grok 4.1 Fast
 
 ### Image Generation
 - Generate images from text prompts using multimodal models
-- Support for multiple image generation models (Gemini, FLUX)
+- Support for multiple image generation models (Google Gemini + OpenAI GPT Image)
 - Full-featured image viewer with zoom, pan, download, and clipboard copy
 
 ### Vision Support
