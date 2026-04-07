@@ -75,7 +75,6 @@ const PROVIDERS: Provider[] = [
     ),
     models: [
       { id: "openai/gpt-5.4", name: "GPT-5.4", description: "Latest flagship model", supportsVision: true },
-      { id: "openai/gpt-5.4-pro", name: "GPT-5.4 Pro", description: "Most advanced reasoning and coding", supportsVision: true },
       { id: "openai/gpt-5.4-mini", name: "GPT-5.4 Mini", description: "Fast and cost-efficient", supportsVision: true },
       { id: "openai/gpt-5.4-nano", name: "GPT-5.4 Nano", description: "Lowest-latency lightweight option", supportsVision: true },
     ],

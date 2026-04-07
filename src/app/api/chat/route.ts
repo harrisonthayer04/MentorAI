@@ -177,7 +177,6 @@ const MODEL_SLUGS: Record<string, string> = {
   "google/gemini-3.1-flash-lite-preview": "google/gemini-3.1-flash-lite-preview",
   "google/gemini-2.5-flash": "google/gemini-2.5-flash",
   "openai/gpt-5.4": "openai/gpt-5.4",
-  "openai/gpt-5.4-pro": "openai/gpt-5.4-pro",
   "openai/gpt-5.4-mini": "openai/gpt-5.4-mini",
   "openai/gpt-5.4-nano": "openai/gpt-5.4-nano",
   "x-ai/grok-4.20": "x-ai/grok-4.20",
@@ -208,7 +207,6 @@ const VISION_CAPABLE_MODELS: Set<string> = new Set([
   "x-ai/grok-4.1-fast",
   // OpenAI models
   "openai/gpt-5.4",
-  "openai/gpt-5.4-pro",
   "openai/gpt-5.4-mini",
   "openai/gpt-5.4-nano",
 ]);
